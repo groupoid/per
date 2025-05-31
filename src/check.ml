@@ -45,9 +45,7 @@ let rec eval (e0 : exp) (ctx : ctx) = traceEval e0; match e0 with
   | ENeg e               -> negFormula (eval e ctx)
   | ETransp (p, i)       -> VTransp (eval p ctx, eval i ctx)
   | EHComp (t, r, u, u0) -> hcomp (eval t ctx) (eval r ctx) (eval u ctx) (eval u0 ctx)
-  | EPartial e           -> let (i, _, _) = freshDim () in
-    VLam (VI, (i, fun r -> let ts = mkSystem (List.map (fun mu ->
-      (mu, eval e (faceEnv mu ctx))) (solve r One)) in VPartialP (VSystem ts, r)))
+  | EPartial e           -> let (i, _, _) = freshDim () in VLam (VI, (i, fun r -> let ts = mkSystem (List.map (fun mu -> (mu, eval e (faceEnv mu ctx))) (solve r One)) in VPartialP (VSystem ts, r)))
   | EPartialP (t, r)     -> VPartialP (eval t ctx, eval r ctx)
   | ESystem xs           -> VSystem (evalSystem ctx xs)
   | ESub (a, i, u)       -> VSub (eval a ctx, eval i ctx, eval u ctx)
@@ -64,6 +62,7 @@ let rec eval (e0 : exp) (ctx : ctx) = traceEval e0; match e0 with
   | EIndBool e           -> VIndBool (eval e ctx)
   | EW (a, (p, b))       -> let t = eval a ctx in W (t, (fresh p, closByVal ctx p t b))
   | ESup (a, b)          -> VSup (eval a ctx, eval b ctx)
+  | EIndW (a, b, c)      -> VIndW (eval a ctx, eval b ctx, eval c ctx)
 
 and appFormula v x = match v with
   | VPLam f -> app (f, x)
@@ -409,10 +408,9 @@ and conv v1 v2 : bool = traceConv v1 v2;
     | VPair (_, a, b), v | v, VPair (_, a, b) -> conv (vfst v) a && conv (vsnd v) b
     | VPi  (a, (p, f)), VPi  (b, (_, g))
     | VSig (a, (p, f)), VSig (b, (_, g))
-    | VLam (a, (p, f)), VLam (b, (_, g)) ->
-      let x = Var (p, a) in conv a b && conv (f x) (g x)
-    | VLam (a, (p, f)), b | b, VLam (a, (p, f)) ->
-      let x = Var (p, a) in conv (app (b, x)) (f x)
+    | VLam (a, (p, f)), VLam (b, (_, g)) ->  let x = Var (p, a) in conv a b && conv (f x) (g x)
+    | VLam (a, (p, f)), b | b, VLam (a, (p, f)) -> let x = Var (p, a) in conv (app (b, x)) (f x)
+    | W    (a, (p, f)), W    (b, (_, g)) -> let x = Var (p, a) in conv a b && conv (f x) (g x)
     | VPre u, VPre v -> ieq u v
     | VPLam f, VPLam g -> conv f g
     | VPLam f, v | v, VPLam f -> let (_, _, i) = freshDim () in conv (appFormula v i) (app (f, i))
@@ -437,6 +435,17 @@ and conv v1 v2 : bool = traceConv v1 v2;
     | VId u, VId v | VJ u, VJ v -> conv u v
     | VInc (t1, r1), VInc (t2, r2) -> conv t1 t2 && conv r1 r2
     | VOuc u, VOuc v -> conv u v
+    | VEmpty, VEmpty -> true
+    | VIndEmpty u, VIndEmpty v -> conv u v
+    | VUnit, VUnit -> true
+    | VStar, VStar -> true
+    | VIndUnit u, VIndUnit v -> conv u v
+    | VBool, VBool -> true
+    | VFalse, VFalse -> true
+    | VTrue, VTrue -> true
+    | VIndBool u, VIndBool v -> conv u v
+    | VSup (a1, b1), VSup (a2, b2) -> conv a1 a2 && conv b1 b2
+    | VIndW (a1, b1, c1), VIndW (a2, b2, c2) -> conv a1 a2 && conv b1 b2 && conv c1 c2
     | _, _ -> false
   end || convWithSystem (v1, v2) || convId v1 v2
 
@@ -506,7 +515,8 @@ and checkOverlapping ctx ts =
 and infer ctx e : value = traceInfer e; match e with
   | EVar x -> lookup x ctx
   | EKan u -> VKan (Z.succ u)
-  | ESig (a, (p, b)) | EPi (a, (p, b)) -> inferTele ctx p a b
+  | EPi (a, (p, b)) -> inferTele ctx imax p a b
+  | ESig (a, (p, b)) | EW (a, (p, b)) -> inferTele ctx imax p a b
   | ELam (a, (p, b)) -> inferLam ctx p a b
   | EApp (f, x) -> begin match infer ctx f with
     | VPartialP (t, i) -> check ctx x (isOne i); app (t, eval x ctx)
@@ -576,11 +586,11 @@ and inferField ctx p e = match infer ctx e with
   | VSig (t, (q, _)) -> if matchIdent p q then t else inferField ctx p (ESnd e)
   | t                -> raise (ExpectedSig (rbV t))
 
-and inferTele ctx p a b =
+and inferTele ctx g p a b =
   ignore (extSet (infer ctx a));
   let t = eval a ctx in let x = Var (p, t) in
   let ctx' = upLocal ctx p t x in
-  let v = infer ctx' b in imax (infer ctx a) v
+  let v = infer ctx' b in g (infer ctx a) v
 
 and inferLam ctx p a e =
   ignore (extSet (infer ctx a)); let t = eval a ctx in
