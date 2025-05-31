@@ -539,12 +539,11 @@ and check ctx (e0 : exp) (t0 : value) =
       | Irrefutable -> ()
     end
   | EHole, v -> traceHole v ctx
-  | e, VApp (VApp (VPathP p, u0), u1) ->
-    let v0 = act e ezero ctx in
-    let v1 = act e eone  ctx in
-    let (i, x, v) = freshDim () in let ctx' = upLocal ctx i VI v in
-    check ctx' (rbV (act e x ctx')) (appFormula p v);
-    eqNf v0 u0; eqNf v1 u1
+  | EPLam (ELam (EI, (i, e))), VApp (VApp (VPathP p, u0), u1) ->
+    let v = Var (i, VI) in let ctx' = upLocal ctx i VI v in
+    let v0 = eval e (upLocal ctx i VI vzero) in
+    let v1 = eval e (upLocal ctx i VI vone) in
+    check ctx' e (appFormula p v); eqNf v0 u0; eqNf v1 u1
   | e, VPre u -> begin
     match infer ctx e with
     | VKan v | VPre v -> if ieq u v then () else raise (Ineq (rbV (VPre u), rbV (VPre v)))
