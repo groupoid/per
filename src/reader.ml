@@ -1,6 +1,5 @@
 open Printer
 open Lexing
-open Ident
 open Exp
 open Error
 open Check
@@ -36,13 +35,13 @@ let showFile : file -> string = function | (p, x) -> Printf.sprintf "module %s w
 
 let rec checkLine st : line -> state =
   let (ctx, checked) = st in function
-  | Decl d -> if !Prelude.verbose then begin  Printf.printf "Checking: %s\n" (getDeclName d); flush_all () end; (checkDecl ctx (freshDecl d), checked)
+  | Decl d -> if !verbose then begin  Printf.printf "Checking: %s\n" (getDeclName d); flush_all () end; (checkDecl ctx (freshDecl d), checked)
   | Option (opt, value) ->
     begin match opt with
-      | "irrelevance" -> Prelude.irrelevance := getBoolVal opt value
-      | "girard"   -> Prelude.girard  := getBoolVal opt value
-      | "verbose"  -> Prelude.verbose := getBoolVal opt value
-      | "pre-eval" -> Prelude.preeval := getBoolVal opt value
+      | "irrelevance" -> irrelevance := getBoolVal opt value
+      | "girard"   -> girard  := getBoolVal opt value
+      | "verbose"  -> verbose := getBoolVal opt value
+      | "pre-eval" -> preeval := getBoolVal opt value
       | _          -> raise (UnknownOption opt)
     end; st
   | Import xs -> List.fold_left (fun st x -> let path = ext x in
@@ -52,7 +51,7 @@ and checkFile p path =
   let (ctx, checked) = p in
   let filename = Filename.basename path in
   let chan = open_in path in
-  let (name, con) = parseErr Parser.file (Lexing.from_channel chan) path in close_in chan; if !Prelude.verbose then begin Printf.printf "Parsed “%s” successfully.\n" filename; flush_all () end;
+  let (name, con) = parseErr Parser.file (Lexing.from_channel chan) path in close_in chan; if !verbose then begin Printf.printf "Parsed “%s” successfully.\n" filename; flush_all () end;
   if ext name = filename then () else raise (InvalidModuleName (name, filename));
   let res = checkContent (ctx, Files.add path checked) con in print_endline ("File “" ^ filename ^ "” checked."); res
 

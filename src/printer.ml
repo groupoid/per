@@ -1,6 +1,4 @@
-open Ident
 open Exp
-open Prelude
 
 let showIdent : ident -> string = function
   | Irrefutable -> "_"
@@ -18,8 +16,6 @@ let showSystem show xs =
   System.bindings xs
   |> List.map (fun (x, e) -> Printf.sprintf "%s → %s" (showFace x) (show e))
   |> String.concat ", "
-
-let parens b x = if b then "(" ^ x ^ ")" else x
 
 let rec ppExp paren e = let x = match e with
   | EKan n -> "U" ^ showSubscript n
@@ -62,7 +58,7 @@ let rec ppExp paren e = let x = match e with
   | EPartialP (t, r) -> Printf.sprintf "PartialP %s %s" (ppExp true t) (ppExp true r)
   | EInc (t, r) -> Printf.sprintf "inc %s %s" (ppExp true t) (ppExp true r)
   | EOuc e -> Printf.sprintf "ouc %s" (ppExp true e) in match e with | EVar _ | EFst _ | ESnd _ | EI | EPre _ | ESystem _ | EKan _ | EHole | EDir _ | EPair _ | ENeg _ -> x
-  | _ -> parens paren x
+  | _ -> if paren then "(" ^ x ^ ")" else x
 
 and showExp e = ppExp false e
 and showTeleExp a = match a with | (p, x) -> Printf.sprintf "(%s : %s)" (showIdent p) (showExp x)

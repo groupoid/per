@@ -1,7 +1,5 @@
 open Printer
-open Prelude
 open Error
-open Ident
 open Exp
 
 let extPiG : value -> value * clos = function | VPi (t, g) -> (t, g) | u -> raise (ExpectedPi (rbV u))
@@ -81,7 +79,7 @@ let rec solve k x = match k, x with
   | _, _ -> failwith (Printf.sprintf "Cannot solve: %s = %s" (showExp (rbV k)) (showDir x))
 
 let freshDim () = let i = freshName "ι" in (i, EVar i, Var (i, VI))
-let ieq u v : bool = !Prelude.girard || u = v
+let ieq u v : bool = !girard || u = v
 let vfst : value -> value = function | VPair (_, u, _) -> u | v -> VFst v
 let vsnd : value -> value = function | VPair (_, _, u) -> u | v -> VSnd v
 
@@ -745,7 +743,7 @@ let freshDecl : decl -> decl = function
 
 let ext x = x ^ ".per"
 let empty : state = (Env.empty, Files.empty)
-let getTerm e ctx = if !Prelude.preeval then Value (eval e ctx) else Exp e
+let getTerm e ctx = if !preeval then Value (eval e ctx) else Exp e
 
 let checkDecl ctx d : ctx =
   let x = getDeclName d in if Env.mem (ident x) ctx then raise (AlreadyDeclared x);

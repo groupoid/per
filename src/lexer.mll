@@ -30,7 +30,6 @@ let tokenToString : token -> string = function
   | INDUNIT    -> "INDUNIT"     | INDBOOL    -> "INDBOOL"
   | INDW       -> "INDW"
 
-
   let nextLine lexbuf =
     let pos = lexbuf.lex_curr_p in
     lexbuf.lex_curr_p <-
@@ -109,10 +108,9 @@ rule main = parse
   | "import"     -> IMPORT   | "option"          -> OPTION
   | "PathP"      -> PATHP    | "transp"          -> TRANSP
   | "_"          -> IRREF    | "@"               -> APPFORMULA
-  | "?"               -> HOLE
+  | "hcomp"      -> HCOMP    | "?"               -> HOLE
   | "Partial"    -> PARTIAL  | "PartialP"        -> PARTIALP
   | "inc"        -> INC      | "ouc"             -> OUC
-  | "hcomp"      -> HCOMP
   | "W"          -> W        | "sup"             -> SUP
   | "definition"             | "def"
   | "theorem"                | "lemma"

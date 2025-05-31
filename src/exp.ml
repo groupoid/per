@@ -1,3 +1,31 @@
+let (<<) f g x = f (g x)
+let (>>) g f x = f (g x)
+
+let initLast xs =
+  let rec func xs = function
+    | []      -> failwith "initLast: expected non-empty list"
+    | [y]     -> (xs, y)
+    | y :: ys -> func (y :: xs) ys in
+  let (ys, y) = func [] xs in (List.rev ys, y)
+
+let getDigit x = Char.chr (Z.to_int x + 0x80) |> Printf.sprintf "\xE2\x82%c"
+let ten = Z.of_int 10
+
+let rec showSubscript x =
+  if Z.lt x Z.zero then failwith "showSubscript: expected positive integer"
+  else if Z.equal x Z.zero then "" else let (y, d) = Z.div_rem x ten in
+    showSubscript y ^ getDigit d
+
+let moduleSep = '/'
+let getPath = String.split_on_char moduleSep >> String.concat Filename.dir_sep
+
+let trace   : bool ref = ref false
+let indices : bool ref = ref false
+let preeval : bool ref = ref true
+let girard  : bool ref = ref false
+let verbose : bool ref = ref true
+let irrelevance     : bool ref = ref false
+let traceHole v gma = ()
 
 type ident = Irrefutable | Ident of string * int64
 
@@ -28,6 +56,29 @@ struct
     | _, _      -> 0
 end
 
+module Files = Set.Make(String)
+
+let gidx : int64 ref = ref 0L
+let gen () = gidx := Int64.succ !gidx; !gidx
+let fresh : ident -> ident = function | Irrefutable  -> let n = gen () in Ident ("x" ^ showSubscript (Z.of_int64 n), n) | Ident (p, _) -> Ident (p, gen ())
+let freshName x = let n = gen () in Ident (x ^ showSubscript (Z.of_int64 n), n)
+let matchIdent p : ident -> bool = function | Irrefutable -> false | Ident (q, _) -> p = q
+let getDigit x = Char.chr (x + 0x80) |> Printf.sprintf "\xE2\x82%c"
+
+module Atom =
+struct
+  type t = ident * dir
+  let compare (a, x) (b, y) = if a = b then Dir.compare x y else Ident.compare a b
+end
+
+module Conjunction = Set.Make(Atom)
+
+type conjunction = Conjunction.t
+
+module Disjunction = Set.Make(Conjunction)
+
+type disjunction = Disjunction.t
+
 type face = dir Env.t
 
 module Face =
@@ -43,11 +94,7 @@ module System = Map.Make(Face)
 let eps : face = Env.empty
 let negDir : dir -> dir = function | Zero -> One | One -> Zero
 let keys ts = List.of_seq (Seq.map fst (System.to_seq ts))
-let intersectionWith f =
-  System.merge (fun _ x y ->
-    match x, y with
-    | Some a, Some b -> Some (f a b)
-    | _,      _      -> None)
+let intersectionWith f = System.merge (fun _ x y ->  match x, y with | Some a, Some b -> Some (f a b) | _, _ -> None)
 
 type exp =
   | EPre of Z.t | EKan of Z.t                                                          (* cosmos *)
@@ -93,6 +140,8 @@ and term = Exp of exp | Value of value
 and record = scope * term * term
 
 and ctx = record Env.t
+
+type state = ctx * Files.t
 
 type command =
   | Nope
@@ -194,10 +243,7 @@ let getVar x =
               ("true", ETrue);   ("1₂", ETrue)] in
     match List.assoc_opt x xs with Some e -> e | None -> decl x
 
-type formula =
-    | Falsehood
-    | Equation of ident * dir
-    | Truth
+type formula = | Falsehood | Equation of ident * dir | Truth
 
 exception ExpectedDir of string
 

@@ -1,5 +1,4 @@
 open Printer
-open Ident
 open Exp
 
 exception Restart
@@ -52,5 +51,4 @@ let prettyPrintError : exn -> unit = function
   | Restart -> raise Restart
   | ex -> Printf.printf "Uncaught exception: %s\n" (Printexc.to_string ex)
 
-let handleErrors (f : 'a -> 'b) (x : 'a) (default : 'b) : 'b =
-  try f x with ex -> prettyPrintError ex; default
+let handleErrors (f : 'a -> 'b) (x : 'a) (default : 'b) : 'b = try f x with ex -> prettyPrintError ex; default

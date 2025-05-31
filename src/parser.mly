@@ -1,6 +1,4 @@
-%{ open Exp
-   open Prelude
-%}
+%{ open Exp %}
 
 %token <string> IDENT
 %token <Z.t> KAN

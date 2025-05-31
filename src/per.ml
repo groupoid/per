@@ -1,6 +1,5 @@
 open Printer
 open Error
-open Ident
 open Check
 open Exp
 
@@ -73,11 +72,11 @@ let cmd : cmdline -> unit = function
   end
   | Help -> print_endline banner ; print_endline help
   | Repl -> repl := true
-  | Silent -> Prelude.verbose := false
-  | Indices -> Prelude.indices := true
-  | Trace -> Prelude.indices := true; Prelude.trace := true
-  | Girard -> Prelude.girard := true
-  | Irrelevance  -> Prelude.irrelevance := true
+  | Silent -> verbose := false
+  | Indices -> indices := true
+  | Trace -> indices := true; trace := true
+  | Girard -> girard := true
+  | Irrelevance  -> irrelevance := true
 
 let rec parseArgs : string list -> cmdline list = function
   | [] -> []
@@ -94,14 +93,10 @@ let rec parseArgs : string list -> cmdline list = function
   | "repl"      :: rest             -> Repl    :: parseArgs rest
   | x :: xs -> Printf.printf "Unknown command “%s”\n" x; parseArgs xs
 
-let defaults = function
-  | [] -> [Help]
-  | xs -> xs
+let defaults = function | [] -> [Help] | xs -> xs
 
 let rec main () =
   try Array.to_list Sys.argv |> List.tl |> parseArgs |> defaults |> List.iter cmd;
-    if !repl then loop () else ()
-  with Restart -> main ()
+  if !repl then loop () else () with Restart -> main ()
 
 let () = main ()
-
