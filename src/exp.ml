@@ -49,8 +49,6 @@ let intersectionWith f =
     | Some a, Some b -> Some (f a b)
     | _,      _      -> None)
 
-(* MLTT-80 (cubical) *)
-
 type exp =
   | EPre of Z.t | EKan of Z.t                                                          (* cosmos *)
   | EVar of ident | EHole                                                           (* variables *)
@@ -71,8 +69,6 @@ type exp =
 type tele = ident * exp
 
 type scope = Local | Global
-
-(* Intermediate type checker values *)
 
 type value =
   | VKan of Z.t | VPre of Z.t
@@ -117,34 +113,25 @@ type content = line list
 
 type file = string * content
 
-(* Implementation *)
-
 let eLam p a b = ELam (a, (p, b))
 let ePi  p a b = EPi  (a, (p, b))
 let eSig p a b = ESig (a, (p, b))
 let eW   p a b = EW   (a, (p, b))
-
 let ezero = EDir Zero
 let eone  = EDir One
 let vzero = VDir Zero
 let vone  = VDir One
-
 let isOne i = VApp (VApp (VId VI, VDir One), i)
 let extFace x e = e (List.map (fun (p, v) -> Var (p, isOne v)) x)
-
 let ident x = Ident (x, 0L)
 let decl x = EVar (ident x)
-
 let upVar p x ctx = match p with Irrefutable -> ctx | _ -> Env.add p x ctx
 let upLocal ctx p t v = upVar p (Local, Value t, Value v) ctx
 let upGlobal ctx p t v = upVar p (Global, Value t, Value v) ctx
-
 let isGlobal : record -> bool = function Global, _, _ -> false | Local, _, _ -> true
 let freshVar ns n = match Env.find_opt n ns with Some x -> x | None -> n
 let mapFace fn phi = Env.fold (fun p d -> Env.add (fn p) d) phi Env.empty
 let freshFace ns = mapFace (freshVar ns)
-
-(* Value to Expression *)
 
 let rec rbV v = match v with
   | VLam (t, g)          -> rbVTele eLam t g

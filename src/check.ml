@@ -20,8 +20,6 @@ let imax a b = match a, b with
   | VKan _, _ | VPre _, _ -> raise (ExpectedVSet (rbV b))
   | _, _ -> raise (ExpectedVSet (rbV a))
 
-(* formula *)
-
 let rec orFormula : value * value -> value = function
   | VDir One, _  | _, VDir One  -> VDir One
   | VDir Zero, f | f, VDir Zero -> f
@@ -759,4 +757,3 @@ let getBoolVal opt = function
   | "tt" | "true"  -> true
   | "ff" | "false" -> false
   | value -> raise (UnknownOptionValue (opt, value))
-
