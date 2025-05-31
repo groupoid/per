@@ -76,10 +76,6 @@ rule main = parse
   | "forall"                 | "\xCE\xA0" | "П"  -> PI     (* Π *)
   | "summa"                  | "\xCE\xA3"        -> SIGMA  (* Σ *)
   | "\\"                     | "\xCE\xBB"        -> LAM    (* λ *)
-  | "ind\xE1\xB5\x82" -> INDW
-  | "ind\xE2\x82\x80" -> INDEMPTY
-  | "ind\xE2\x82\x81" -> INDUNIT
-  | "ind\xE2\x82\x82" -> INDBOOL
   | "module"     -> MODULE   | "where"           -> WHERE
   | "import"     -> IMPORT   | "option"          -> OPTION
   | "PathP"      -> PATHP    | "transp"          -> TRANSP
@@ -87,7 +83,7 @@ rule main = parse
   | "?"               -> HOLE
   | "Partial"    -> PARTIAL  | "PartialP"        -> PARTIALP
   | "inc"        -> INC      | "ouc"             -> OUC
-  | "hcomp"      -> HCOMP    
+  | "hcomp"      -> HCOMP
   | "W"          -> W        | "sup"             -> SUP
   | "definition"             | "def"
   | "theorem"                | "lemma"

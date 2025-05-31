@@ -23,8 +23,8 @@ let tokenToString : token -> string = function
   | MAP        -> "MAP"         | IMPORT     -> "IMPORT"
   | INC        -> "INC"         | OUC        -> "OUC"
   | HCOMP      -> "HCOMP"       | DOT        -> "DOT"
-  | IDJ        -> "IDJ"
-  | W          -> "W"           | SUP        -> "SUP"
-  | INDEMPTY   -> "INDEMPTY"    | INDUNIT    -> "INDUNIT"
-  | INDBOOL    -> "INDBOOL"     | INDW       -> "W"
+  | IDJ        -> "IDJ"         | W          -> "W"
+  | SUP        -> "SUP"         | INDEMPTY   -> "INDEMPTY"
+  | INDUNIT    -> "INDUNIT"     | INDBOOL    -> "INDBOOL"
+  | INDW       -> "INDW"
 

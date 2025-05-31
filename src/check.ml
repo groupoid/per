@@ -227,6 +227,8 @@ and act e i ctx = eval (EAppFormula (e, i)) ctx
 and inferV v = traceInferV v; match v with
   | VPi (t, (x, f)) | VSig (t, (x, f)) -> imax (inferV t) (inferV (f (Var (x, t))))
   | VLam (t, (x, f)) -> VPi (t, (x, fun x -> inferV (f x)))
+  | VPLam (VLam (VI, (_, g))) -> let t = VLam (VI, (freshName "ι", g >> inferV)) in VApp (VApp (VPathP (VPLam t), g vzero), g vone)
+  | W (t, (x, f)) -> inferVTele imax t x f
   | Var (_, t)               -> t
   | VFst e                   -> fst (extSigG (inferV e))
   | VSnd e                   -> let (_, (_, g)) = extSigG (inferV e) in g (vfst e)
@@ -270,7 +272,10 @@ and inferV v = traceInferV v; match v with
   | VIndBool t -> recBool t
   | VSup (a, b) -> inferSup a b
   | VIndW (a, b, c) -> inferIndW a b c
+  | VPLam _ | VPair _ | VHole -> raise (InferError (rbV v))
   | v -> raise (ExpectedNeutral (rbV v))
+
+and inferVTele g t x f = g (inferV t) (inferV (f (Var (x, t))))
 
 and extByTag p : value -> value option = function
   | VPair (t, fst, snd) ->
