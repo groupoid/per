@@ -29,7 +29,6 @@ exception UnknownOptionValue of string * string
 let prettyPrintError : exn -> unit = function
   | Ineq (e1, e2) -> Printf.printf "Type mismatch:\n  %s\nis not equal to\n  %s\n" (showExp e1) (showExp e2)
   | ExpectedConjunction v -> Printf.printf "“%s” expected to be conjunction\n" (showExp v)
-  | ExpectedDir s -> Printf.printf "“%s” expected to be “%s” or “%s”" s !zeroPrim !onePrim
   | ExtractionError s -> Printf.printf "Error occured during extraction: %s\n" s
   | ExpectedPath e -> Printf.printf "“%s” expected to be a path.\n" (showExp e)
   | AlreadyDeclared p -> Printf.printf "“%s” is already declared.\n" p

@@ -1,6 +1,5 @@
-type ident =
-  | Irrefutable
-  | Ident of string * int64
+
+type ident = Irrefutable | Ident of string * int64
 
 module Ident =
 struct
@@ -18,8 +17,6 @@ end
 module Env = Map.Make(Ident)
 
 type dir = Zero | One
-let negDir : dir -> dir = function
-  | Zero -> One | One -> Zero
 
 module Dir =
 struct
@@ -32,7 +29,6 @@ struct
 end
 
 type face = dir Env.t
-let eps : face = Env.empty
 
 module Face =
 struct
@@ -40,16 +36,18 @@ struct
   let compare = Env.compare Dir.compare
 end
 
+type tag = (string option) ref
+
 module System = Map.Make(Face)
 
+let eps : face = Env.empty
+let negDir : dir -> dir = function | Zero -> One | One -> Zero
 let keys ts = List.of_seq (Seq.map fst (System.to_seq ts))
 let intersectionWith f =
   System.merge (fun _ x y ->
     match x, y with
     | Some a, Some b -> Some (f a b)
     | _,      _      -> None)
-
-type tag = (string option) ref
 
 (* MLTT-80 (cubical) *)
 
@@ -146,6 +144,8 @@ let freshVar ns n = match Env.find_opt n ns with Some x -> x | None -> n
 let mapFace fn phi = Env.fold (fun p d -> Env.add (fn p) d) phi Env.empty
 let freshFace ns = mapFace (freshVar ns)
 
+(* Value to Expression *)
+
 let rec rbV v = match v with
   | VLam (t, g)          -> rbVTele eLam t g
   | VPair (r, u, v)      -> EPair (r, rbV u, rbV v)
@@ -195,9 +195,6 @@ let zeroPrim     = ref "0"
 let onePrim      = ref "1"
 let intervalPrim = ref "I"
 
-exception ExpectedDir of string
-let getDir x = if x = !zeroPrim then Zero else if x = !onePrim then One else raise (ExpectedDir x)
-
 let getVar x =
     let xs = [(!intervalPrim, EI);
               (!zeroPrim, EDir Zero);
@@ -214,6 +211,9 @@ type formula =
     | Falsehood
     | Equation of ident * dir
     | Truth
+
+exception ExpectedDir of string
+let getDir x = if x = !zeroPrim then Zero else if x = !onePrim then One else raise (ExpectedDir x)
 
 let face p e d : formula = match getVar p, e, getDir d with
     | EVar x,  "=", d  -> Equation (x, d)

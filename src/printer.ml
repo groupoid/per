@@ -2,9 +2,6 @@ open Ident
 open Exp
 open Prelude
 
-exception ExpectedDir of string
-let getDir x = if x = !zeroPrim then Zero else if x = !onePrim then One else raise (ExpectedDir x)
-
 let showIdent : ident -> string = function
   | Irrefutable -> "_"
   | Ident (p, n) -> if !indices then p ^ "#" ^ Int64.to_string n else p

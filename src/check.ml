@@ -4,41 +4,21 @@ open Error
 open Ident
 open Exp
 
-let extPiG : value -> value * clos = function
-  | VPi (t, g) -> (t, g)
-  | u -> raise (ExpectedPi (rbV u))
+let extPiG : value -> value * clos = function | VPi (t, g) -> (t, g) | u -> raise (ExpectedPi (rbV u))
+let extSigG : value -> value * clos = function | VSig (t, g) -> (t, g) | u -> raise (ExpectedSig (rbV u))
+let extSet : value -> Z.t = function | VPre n | VKan n -> n | v -> raise (ExpectedVSet (rbV v))
+let extKan : value -> Z.t = function | VKan n -> n | v -> raise (ExpectedFibrant (rbV v))
+let extPathP = function | VApp (VApp (VPathP v, u0), u1) -> (v, u0, u1) | v -> raise (ExpectedPath (rbV v))
+let extVar ctx x = match Env.find_opt x ctx with | Some (_, _, Value (Var (y, _))) -> y | Some (_, _, Exp (EVar y)) -> y | _ -> x
 
-let extSigG : value -> value * clos = function
-  | VSig (t, g) -> (t, g)
-  | u -> raise (ExpectedSig (rbV u))
-
-let extSet : value -> Z.t = function
-  | VPre n | VKan n -> n
-  | v               -> raise (ExpectedVSet (rbV v))
-
-let extKan : value -> Z.t = function
-  | VKan n -> n
-  | v      -> raise (ExpectedFibrant (rbV v))
-
-let extPathP = function
-  | VApp (VApp (VPathP v, u0), u1) -> (v, u0, u1)
-  | v                              -> raise (ExpectedPath (rbV v))
-
-let extVar ctx x = match Env.find_opt x ctx with
-  | Some (_, _, Value (Var (y, _))) -> y
-  | Some (_, _, Exp (EVar y)) -> y
-  | _ -> x
-
+let idv t x y = VApp (VApp (VId t, x), y)
+let implv a b = VPi (a, (Irrefutable, fun _ -> b))
+let hcompval u = EApp (EApp (u, ezero), ERef eone)
 let imax a b = match a, b with
   | VKan u, VKan v -> VKan (max u v)
   | VPre u, VPre v | VPre u, VKan v | VKan u, VPre v -> VPre (max u v)
   | VKan _, _ | VPre _, _ -> raise (ExpectedVSet (rbV b))
   | _, _ -> raise (ExpectedVSet (rbV a))
-
-let idv t x y = VApp (VApp (VId t, x), y)
-let implv a b = VPi (a, (Irrefutable, fun _ -> b))
-
-let hcompval u = EApp (EApp (u, ezero), ERef eone)
 
 (* formula *)
 
