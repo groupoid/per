@@ -22,7 +22,7 @@ let rec ppExp paren e = let x = match e with
   | EPi (a, (p, b)) -> showPiExp a p b
   | ELam (a, (p, b)) -> Printf.sprintf "λ %s, %s" (showTeleExp (p, a)) (showExp b)
   | ESig (a, (p, b)) -> Printf.sprintf "Σ %s, %s" (showTeleExp (p, a)) (showExp b)
-  | EW   (a, (p, b)) -> Printf.sprintf "W %s, %s" (showTeleExp (p, a)) (showExp b)
+  | EW (a, (p, b)) -> Printf.sprintf "W %s, %s" (showTeleExp (p, a)) (showExp b)
   | EPair (_, fst, snd) -> Printf.sprintf "(%s, %s)" (showExp fst) (showExp snd)
   | EFst exp -> ppExp true exp ^ ".1"
   | ESnd exp -> ppExp true exp ^ ".2"
@@ -50,7 +50,6 @@ let rec ppExp paren e = let x = match e with
   | EIndEmpty e -> Printf.sprintf "ind₀ %s" (ppExp true e)
   | EIndUnit e  -> Printf.sprintf "ind₁ %s" (ppExp true e)
   | EIndBool e  -> Printf.sprintf "ind₂ %s" (ppExp true e)
-  | EW (a, (p, b)) -> Printf.sprintf "W %s, %s" (showTeleExp (p, a)) (showExp b)
   | ESup (a, b) -> Printf.sprintf "sup %s %s" (ppExp true a) (ppExp true b)
   | EIndW (a, b, c) -> Printf.sprintf "indᵂ %s %s %s" (ppExp true a) (ppExp true b) (ppExp true c)
   | EHComp (t, r, u, u0) -> Printf.sprintf "hcomp %s %s %s %s" (ppExp true t) (ppExp true r) (ppExp true u) (ppExp true u0)

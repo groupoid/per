@@ -25,7 +25,7 @@ let preeval : bool ref = ref true
 let girard  : bool ref = ref false
 let verbose : bool ref = ref true
 let irrelevance     : bool ref = ref false
-let traceHole v gma = ()
+let traceHole _ _ = ()
 
 type ident = Irrefutable | Ident of string * int64
 
@@ -131,7 +131,7 @@ type value =
   | VEmpty | VIndEmpty of value
   | VUnit | VStar | VIndUnit of value
   | VBool | VFalse | VTrue | VIndBool of value
-  | W of value * clos | VSup of value * value | VIndW of value * value * value
+  | VW of value * clos | VSup of value * value | VIndW of value * value * value
 
 and clos = ident * (value -> value)
 
@@ -150,7 +150,7 @@ type command =
   | Command of string * exp
 
 type decl =
-  | Def of string * exp option * exp
+  | Def of string * exp * exp
   | Axiom of string * exp
 
 type line =
@@ -221,7 +221,7 @@ let rec rbV v = match v with
   | VFalse               -> EFalse
   | VTrue                -> ETrue
   | VIndBool v           -> EIndBool (rbV v)
-  | W (t, g)             -> rbVTele eW t g
+  | VW (t, g)            -> rbVTele eW t g
   | VSup (a, b)          -> ESup (rbV a, rbV b)
   | VIndW (a, b, c)      -> EIndW (rbV a, rbV b, rbV c)
 
@@ -232,16 +232,14 @@ let onePrim      = ref "1"
 let intervalPrim = ref "I"
 
 let getVar x =
-    let xs = [(!intervalPrim, EI);
-              (!zeroPrim, EDir Zero);
-              (!onePrim, EDir One);
-              ("𝟎", EEmpty);     ("empty", EEmpty);
-              ("𝟏", EUnit);      ("unit", EUnit);
-              ("𝟐", EBool);      ("bool", EBool);
-              ("★", EStar);      ("star", EStar);
-              ("false", EFalse); ("0₂", EFalse);
-              ("true", ETrue);   ("1₂", ETrue)] in
-    match List.assoc_opt x xs with Some e -> e | None -> decl x
+  let xs = [
+    (!intervalPrim, EI);
+    (!zeroPrim, EDir Zero);
+    (!onePrim, EDir One);
+    ("𝟎", EEmpty); ("empty", EEmpty);
+    ("𝟏", EUnit);  ("unit", EUnit); ("★", EStar); ("star", EStar);
+    ("𝟐", EBool);  ("bool", EBool); ("false", EFalse); ("0₂", EFalse); ("true", ETrue); ("1₂", ETrue)
+  ] in match List.assoc_opt x xs with Some e -> e | None -> decl x
 
 type formula = | Falsehood | Equation of ident * dir | Truth
 

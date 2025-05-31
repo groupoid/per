@@ -124,7 +124,7 @@ let rec eval (e0 : exp) (ctx : ctx) = match e0 with
   | EFalse               -> VFalse
   | ETrue                -> VTrue
   | EIndBool e           -> VIndBool (eval e ctx)
-  | EW (a, (p, b))       -> let t = eval a ctx in W (t, (fresh p, closByVal ctx p t b))
+  | EW (a, (p, b))       -> let t = eval a ctx in VW (t, (fresh p, closByVal ctx p t b))
   | ESup (a, b)          -> VSup (eval a ctx, eval b ctx)
   | EIndW (a, b, c)      -> VIndW (eval a ctx, eval b ctx, eval c ctx)
 
@@ -147,9 +147,7 @@ and transport p phi u0 = let (_, _, v) = freshDim () in match appFormula p v, ph
   | _, VDir One -> u0
   (* transp (<_> U) i A ~> A *)
   | VKan _, _ -> u0
-  (* transp (<i> Π (x : A i), B i x) φ u₀ ~>
-     λ (x : A 1), transp (<i> B i (transFill (<j> A -j) φ x i)) φ
-      (u₀ (transFill (<j> A -j) φ x 1)) *)
+  (* transp (<i> Π (x : A i), B i x) φ u₀ ~> λ (x : A 1), transp (<i> B i (transFill (<j> A -j) φ x i)) φ (u₀ (transFill (<j> A -j) φ x 1)) *)
   | VPi _, _ -> let x = fresh (ident "x") in
     let (i, _, _) = freshDim () in let (j, _, _) = freshDim () in
     let (t, _) = extPiG (appFormula p vone) in
@@ -160,9 +158,7 @@ and transport p phi u0 = let (_, _, v) = freshDim () in match appFormula p v, ph
         let (_, (_, b)) = extPiG (appFormula p i) in
           b (v (negFormula i))))))
         phi (app (u0, v vone))))
-  (* transp (<i> Σ (x : A i), B i x) φ u₀ ~>
-    (transp (<j> A j) φ u₀.1,
-     transp (<i> B i (transFill (<j> A j) φ u₀.1 i)) φ u₀.2) *)
+  (* transp (<i> Σ (x : A i), B i x) φ u₀ ~> (transp (<j> A j) φ u₀.1, transp (<i> B i (transFill (<j> A j) φ u₀.1 i)) φ u₀.2) *)
   | VSig _, _ ->
     let (i, _, _) = freshDim () in let (j, _, _) = freshDim () in
     let a = VPLam (VLam (VI, (j, fun j -> fst (extSigG (appFormula p j))))) in
@@ -171,9 +167,7 @@ and transport p phi u0 = let (_, _, v) = freshDim () in match appFormula p v, ph
       let (_, (_, b)) = extSigG (appFormula p i) in
         b (v1 i))))) phi (vsnd u0) in
     VPair (ref None, v1 vone, v2)
-  (* transp (<i> PathP (P i) (v i) (w i)) φ u₀ ~>
-     <j> comp (λ i, P i @ j) (φ ∨ j ∨ -j)
-       (λ (i : I), [(φ = 1) → u₀ @ j, (j = 0) → v i, (j = 1) → w i]) (u₀ @ j) *)
+  (* transp (<i> PathP (P i) (v i) (w i)) φ u₀ ~> <j> comp (λ i, P i @ j) (φ ∨ j ∨ -j) (λ (i : I), [(φ = 1) → u₀ @ j, (j = 0) → v i, (j = 1) → w i]) (u₀ @ j) *)
   | VApp (VApp (VPathP _, _), _), _ ->
     let i = fresh (ident "ι") in let j = fresh (ident "υ") in
     VPLam (VLam (VI, (j, fun j ->
@@ -195,10 +189,7 @@ and hcomp t r u u0 = match t, r with
       hcomp (b x) r (VLam (VI, (i, fun i ->
         VSystem (border (solve r One)
           (app (app (app (u, i), VRef vone), x)))))) (app (u0, x))))
-   (* hcomp (Σ (x : A), B x) φ u u₀ ~>
-     (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 1,
-      comp (λ i, B (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 i)) φ
-        (λ (k : I), [(r = 1) → (u k 1=1).2]) u₀.2) *)
+  (* hcomp (Σ (x : A), B x) φ u u₀ ~> (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 1, comp (λ i, B (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 i)) φ (λ (k : I), [(r = 1) → (u k 1=1).2]) u₀.2) *)
   | VSig (t, (_, b)), _ ->
     let (k, _, _) = freshDim () in
     let v1 = hfill t r (VLam (VI, (k, fun k ->
@@ -208,8 +199,7 @@ and hcomp t r u u0 = match t, r with
       VSystem (border (solve r One)
         (vsnd (app (app (u, k), VRef vone))))))) (vsnd u0) in
     VPair (ref None, v1 vone, v2)
-  (* hcomp (PathP A v w) φ u u₀ ~> <j> hcomp (A @ j) (λ (i : I),
-      [(r = 1) → u i 1=1, (j = 0) → v, (j = 1) → w]) (u₀ @ j) *)
+  (* hcomp (PathP A v w) φ u u₀ ~> <j> hcomp (A @ j) (λ (i : I), [(r = 1) → u i 1=1, (j = 0) → v, (j = 1) → w]) (u₀ @ j) *)
   | VApp (VApp (VPathP t, v), w), _ ->
     let (j, _, _) = freshDim () in let (i, _, _) = freshDim () in
     VPLam (VLam (VI, (j, fun j ->
@@ -242,8 +232,7 @@ and transFill p phi u0 j = let (i, _, _) = freshDim () in
     (orFormula (phi, negFormula j)) u0
 
 and closByVal ctx p t e v =
-  (* dirty hack to handle free variables introduced by type checker,
-     for example, while checking terms like p : Path P a b *)
+  (* dirty hack to handle free variables introduced by type checker, for example, while checking terms like p : Path P a b *)
   let ctx' = match v with
   | Var (x, t) -> if Env.mem x ctx then ctx else upLocal ctx x t v
   | _          -> ctx in
@@ -258,18 +247,13 @@ and app : value * value -> value = function
   | f, x -> VApp (f, x)
 
 and evalSystem ctx ts =
-  let ts' =
-    System.fold (fun alpha talpha ->
+  let ts' = System.fold (fun alpha talpha ->
       Env.bindings alpha
       |> List.rev_map (fun (i, d) -> solve (getRho ctx i) d)
       |> meetss
       |> List.rev_map (fun beta -> (beta, eval talpha (faceEnv beta ctx)))
       |> List.rev_append) ts [] in
-
-  (* ensure incomparability *)
-  List.filter (fun (alpha, _) ->
-    not (List.exists (fun (beta, _) -> lt beta alpha) ts')) ts'
-  |> mkSystem
+  List.filter (fun (alpha, _) -> not (List.exists (fun (beta, _) -> lt beta alpha) ts')) ts' |> mkSystem
 
 and reduceSystem ts x =
   match System.find_opt eps ts with
@@ -292,7 +276,7 @@ and inferV v = match v with
   | VPi (t, (x, f)) | VSig (t, (x, f)) -> imax (inferV t) (inferV (f (Var (x, t))))
   | VLam (t, (x, f)) -> VPi (t, (x, fun x -> inferV (f x)))
   | VPLam (VLam (VI, (_, g))) -> let t = VLam (VI, (freshName "ι", g >> inferV)) in VApp (VApp (VPathP (VPLam t), g vzero), g vone)
-  | W (t, (x, f)) -> inferVTele imax t x f
+  | VW (t, (x, f)) -> inferVTele imax t x f
   | Var (_, t)               -> t
   | VFst e                   -> fst (extSigG (inferV e))
   | VSnd e                   -> let (_, (_, g)) = extSigG (inferV e) in g (vfst e)
@@ -337,7 +321,6 @@ and inferV v = match v with
   | VSup (a, b) -> inferSup a b
   | VIndW (a, b, c) -> inferIndW a b c
   | VPLam _ | VPair _ | VHole -> raise (InferError (rbV v))
-  | v -> raise (ExpectedNeutral (rbV v))
 
 and inferVTele g t x f = g (inferV t) (inferV (f (Var (x, t))))
 
@@ -396,7 +379,7 @@ and upd e = function
   | VFalse               -> VFalse
   | VTrue                -> VTrue
   | VIndBool v           -> VIndBool (upd e v)
-  | W (t, (x, g))        -> W (upd e t, (x, g >> upd e))
+  | VW (t, (x, g))       -> VW (upd e t, (x, g >> upd e))
   | VSup (a, b)          -> VSup (upd e a, upd e b)
   | VIndW (a, b, c)      -> VIndW (upd e a, upd e b, upd e c)
 
@@ -447,7 +430,7 @@ and rbV v : exp = match v with
   | VFalse               -> EFalse
   | VTrue                -> ETrue
   | VIndBool v           -> EIndBool (rbV v)
-  | W (t, g)             -> rbVTele eW t g
+  | VW (t, g)             -> rbVTele eW t g
   | VSup (a, b)          -> ESup (rbV a, rbV b)
   | VIndW (a, b, c)      -> EIndW (rbV a, rbV b, rbV c)
 
@@ -463,11 +446,11 @@ and conv v1 v2 : bool =
     | VKan u, VKan v -> ieq u v
     | VPair (_, a, b), VPair (_, c, d) -> conv a c && conv b d
     | VPair (_, a, b), v | v, VPair (_, a, b) -> conv (vfst v) a && conv (vsnd v) b
-    | VPi  (a, (p, f)), VPi  (b, (_, g))
+    | VPi (a, (p, f)), VPi  (b, (_, g))
     | VSig (a, (p, f)), VSig (b, (_, g))
     | VLam (a, (p, f)), VLam (b, (_, g)) ->  let x = Var (p, a) in conv a b && conv (f x) (g x)
     | VLam (a, (p, f)), b | b, VLam (a, (p, f)) -> let x = Var (p, a) in conv (app (b, x)) (f x)
-    | W    (a, (p, f)), W    (b, (_, g)) -> let x = Var (p, a) in conv a b && conv (f x) (g x)
+    | VW (a, (p, f)), VW (b, (_, g)) -> let x = Var (p, a) in conv a b && conv (f x) (g x)
     | VPre u, VPre v -> ieq u v
     | VPLam f, VPLam g -> conv f g
     | VPLam f, v | v, VPLam f -> let (_, _, i) = freshDim () in conv (appFormula v i) (app (f, i))
@@ -588,16 +571,11 @@ and infer ctx e : value = match e with
     | VPartialP (ts, r) -> eqNf r (eval r0 ctx); inferV (inferV ts)
     | _ -> failwith "Expected partial function into universe"
   end
-  | EAppFormula (f, x) -> check ctx x VI; let (p, _, _) = extPathP (infer ctx (rbV (eval f ctx))) in
-    appFormula p (eval x ctx)
+  | EAppFormula (f, x) -> check ctx x VI; let (p, _, _) = extPathP (infer ctx (rbV (eval f ctx))) in appFormula p (eval x ctx)
   | ETransp (p, i) -> inferTransport ctx p i
-  | EHComp (e, i, u, u0) -> let t = eval e ctx in let r = eval i ctx in
-    ignore (extKan (infer ctx e)); check ctx i VI;
-    check ctx u (implv VI (partialv t r)); check ctx u0 t;
-    List.iter (fun phi -> let ctx' = faceEnv phi ctx in
-      eqNf (eval (hcompval u) ctx') (eval u0 ctx')) (solve r One); t
-  | ESub (a, i, u) -> let n = extSet (infer ctx a) in check ctx i VI;
-    check ctx u (partialv (eval a ctx) (eval i ctx)); VPre n
+  | EHComp (e, i, u, u0) -> let t = eval e ctx in let r = eval i ctx in ignore (extKan (infer ctx e)); check ctx i VI; check ctx u (implv VI (partialv t r)); check ctx u0 t;
+    List.iter (fun phi -> let ctx' = faceEnv phi ctx in eqNf (eval (hcompval u) ctx') (eval u0 ctx')) (solve r One); t
+  | ESub (a, i, u) -> let n = extSet (infer ctx a) in check ctx i VI; check ctx u (partialv (eval a ctx) (eval i ctx)); VPre n
   | EI -> VPre Z.zero | EDir _ -> VI
   | ENeg e -> check ctx e VI; VI
   | EOr (e1, e2) | EAnd (e1, e2) -> check ctx e1 VI; check ctx e2 VI; VI
@@ -605,27 +583,17 @@ and infer ctx e : value = match e with
   | ERef e -> let v = eval e ctx in let t = infer ctx e in VApp (VApp (VId t, v), v)
   | EJ e -> inferJ (eval e ctx) (infer ctx e)
   | EInc (e, r) -> ignore (extKan (infer ctx e)); check ctx r VI; inferInc (eval e ctx) (eval r ctx)
-  | EOuc e -> begin match infer ctx e with
-    | VSub (t, _, _) -> t
-    | _ -> raise (ExpectedSubtype e)
-  end
-  | ESystem ts -> checkOverlapping ctx ts;
-    VPartialP (VSystem (System.map (infer ctx) ts), eval (getFormula ts) ctx)
+  | EOuc e -> begin match infer ctx e with | VSub (t, _, _) -> t | _ -> raise (ExpectedSubtype e) end
+  | ESystem ts -> checkOverlapping ctx ts; VPartialP (VSystem (System.map (infer ctx) ts), eval (getFormula ts) ctx)
   | EEmpty | EUnit | EBool -> VKan Z.zero
   | EStar -> VUnit | EFalse | ETrue -> VBool
   | EIndEmpty e -> ignore (extSet (infer ctx e)); implv VEmpty (eval e ctx)
   | EIndUnit e -> inferInd false ctx VUnit e recUnit
   | EIndBool e -> inferInd false ctx VBool e recBool
-  | ESup (a, b) -> let t = eval a ctx in ignore (extSet (infer ctx a));
-    let (t', (p, g)) = extPiG (infer ctx b) in eqNf t t';
-    ignore (extSet (g (Var (p, t))));
-    inferSup t (eval b ctx)
+  | ESup (a, b) -> let t = eval a ctx in ignore (extSet (infer ctx a)); let (t', (p, g)) = extPiG (infer ctx b) in eqNf t t'; ignore (extSet (g (Var (p, t)))); inferSup t (eval b ctx)
   | EIndW (a, b, c) -> let t = eval a ctx in ignore (extSet (infer ctx a));
-    let (t', (p, g)) = extPiG (infer ctx b) in
-    eqNf t t'; ignore (extSet (g (Var (p, t))));
-
-    let (w', (q, h)) = extPiG (infer ctx c) in
-    eqNf (wtype t (eval b ctx)) w';
+    let (t', (p, g)) = extPiG (infer ctx b) in eqNf t t'; ignore (extSet (g (Var (p, t))));
+    let (w', (q, h)) = extPiG (infer ctx c) in eqNf (wtype t (eval b ctx)) w';
     ignore (extSet (h (Var (q, w'))));
     inferIndW t (eval b ctx) (eval c ctx)
   | e -> raise (InferError e)
@@ -678,7 +646,7 @@ and inferJ v t =
 
 and recUnit t = let x = freshName "x" in implv (app (t, VStar)) (VPi (VUnit, (x, fun x -> app (t, x))))
 and recBool t = let x = freshName "x" in implv (app (t, VFalse)) (implv (app (t, VTrue)) (VPi (VBool, (x, fun x -> app (t, x)))))
-and wtype a b = W (a, (freshName "x", fun x -> app (b, x)))
+and wtype a b = VW (a, (freshName "x", fun x -> app (b, x)))
 and inferSup a b = let t = wtype a b in let x = freshName "x" in VPi (a, (x, fun x -> implv (implv (app (b, x)) t) t))
 and inferIndW a b c = let t = wtype a b in
   implv (VPi (a, (freshName "x", fun x ->
@@ -688,18 +656,18 @@ and inferIndW a b c = let t = wtype a b in
     (VPi (t, (freshName "w", fun w -> app (c, w))))
 
 let rec salt (ns : ident Env.t) : exp -> exp = function
-  | ELam (a, (p, b))     -> saltTele eLam ns p a b
   | EKan n               -> EKan n
+  | EPre n               -> EPre n
+  | EVar x               -> EVar (freshVar ns x)
+  | EHole                -> EHole
   | EPi (a, (p, b))      -> saltTele ePi ns p a b
+  | ELam (a, (p, b))     -> saltTele eLam ns p a b
+  | EApp (f, x)          -> EApp (salt ns f, salt ns x)
   | ESig (a, (p, b))     -> saltTele eSig ns p a b
   | EPair (r, a, b)      -> EPair (r, salt ns a, salt ns b)
   | EFst e               -> EFst (salt ns e)
   | ESnd e               -> ESnd (salt ns e)
   | EField (e, p)        -> EField (salt ns e, p)
-  | EApp (f, x)          -> EApp (salt ns f, salt ns x)
-  | EVar x               -> EVar (freshVar ns x)
-  | EHole                -> EHole
-  | EPre n               -> EPre n
   | EId e                -> EId (salt ns e)
   | ERef e               -> ERef (salt ns e)
   | EJ e                 -> EJ (salt ns e)
@@ -714,8 +682,8 @@ let rec salt (ns : ident Env.t) : exp -> exp = function
   | ESystem xs           -> ESystem (System.fold (fun k v -> System.add (freshFace ns k) (salt ns v)) xs System.empty)
   | EInc (t, r)          -> EInc (salt ns t, salt ns r)
   | EOuc e               -> EOuc (salt ns e)
-  | EI                   -> EI
   | EDir d               -> EDir d
+  | EI                   -> EI
   | EAnd (a, b)          -> EAnd (salt ns a, salt ns b)
   | EOr (a, b)           -> EOr (salt ns a, salt ns b)
   | ENeg e               -> ENeg (salt ns e)
@@ -734,12 +702,10 @@ let rec salt (ns : ident Env.t) : exp -> exp = function
 
 and freshFace ns phi = Env.fold (fun k v -> Env.add (freshVar ns k) v) phi Env.empty
 and saltTele ctor ns p a b = let x = fresh p in ctor x (salt ns a) (salt (Env.add p x ns) b)
+
 let freshTele ns : tele -> tele = fun (p, e) -> let q = fresh p in let e' = salt !ns e in ns := Env.add p q !ns; (q, e')
 let freshExp = salt Env.empty
-let freshDecl : decl -> decl = function
-  | Def (p, Some exp1, exp2) -> Def (p, Some (freshExp exp1), freshExp exp2)
-  | Axiom (p, exp) -> Axiom (p, freshExp exp)
-
+let freshDecl : decl -> decl = function | Def (p, exp1, exp2) -> Def (p, (freshExp exp1), freshExp exp2) | Axiom (p, exp) -> Axiom (p, freshExp exp)
 let ext x = x ^ ".per"
 let empty : state = (Env.empty, Files.empty)
 let getTerm e ctx = if !preeval then Value (eval e ctx) else Exp e
@@ -747,8 +713,8 @@ let getTerm e ctx = if !preeval then Value (eval e ctx) else Exp e
 let checkDecl ctx d : ctx =
   let x = getDeclName d in if Env.mem (ident x) ctx then raise (AlreadyDeclared x);
   match d with
-  | Def (p, Some a, e) -> ignore (extSet (infer ctx a)); let t = eval a ctx in let v = ident p in check (upGlobal ctx v t (Var (v, t))) e t; Env.add (ident p) (Global, Value t, getTerm e ctx) ctx
-  | Axiom (p, a) -> ignore (extSet (infer ctx a)); let x = ident p in let t = eval a ctx in Env.add x (Global, Value t, Value (Var (x, t))) ctx
+  | Def (p, a, e) -> ignore (extSet (infer ctx a)); let t = eval a ctx in let v = ident p in check (upGlobal ctx v t (Var (v, t))) e t; Env.add (ident p) (Global, Value t, getTerm e ctx) ctx
+  | Axiom (p, a)  -> ignore (extSet (infer ctx a)); let x = ident p in let t = eval a ctx in Env.add x (Global, Value t, Value (Var (x, t))) ctx
 
 let getBoolVal opt = function
   | "tt" | "true"  -> true

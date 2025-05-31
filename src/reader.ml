@@ -21,7 +21,7 @@ let lex filename =
   print_newline ()
 
 let showDecl : decl -> string = function
-  | Def (p, Some exp1, exp2) -> Printf.sprintf "def %s : %s := %s" p (showExp exp1) (showExp exp2)
+  | Def (p, exp1, exp2) -> Printf.sprintf "def %s : %s := %s" p (showExp exp1) (showExp exp2)
   | Axiom (p, exp) -> Printf.sprintf "axiom %s : %s" p (showExp exp)
 
 let showLine : line -> string = function

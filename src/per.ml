@@ -46,7 +46,7 @@ type cmdline =
   | Lex       of string
   | Parse     of string
   | Prim      of string * string
-  | Repl | Help | Trace | Receive
+  | Repl | Help | Trace
   | Indices | Girard | Silent | Irrelevance
 
 let help =

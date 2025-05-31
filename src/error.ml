@@ -5,7 +5,6 @@ exception Restart
 exception IncompatibleFaces
 exception InferError of exp
 exception ExpectedPi of exp
-exception ExpectedESet of exp
 exception ExpectedSig of exp
 exception ExpectedPath of exp
 exception ExpectedVSet of exp
@@ -34,12 +33,10 @@ let prettyPrintError : exn -> unit = function
   | InferError e -> Printf.printf "Cannot infer type of\n  %s\n" (showExp e)
   | VariableNotFound p -> Printf.printf "Variable %s was not found\n" (showIdent p)
   | InvalidModuleName (name, filename) -> Printf.printf "Module “%s” does not match name of its file: %s\n" name filename
-  | ExpectedESet x -> Printf.printf "  %s\nexpected to be universe\n" (showExp x)
   | ExpectedVSet x -> Printf.printf "  %s\nexpected to be universe\n" (showExp x)
   | ExpectedFibrant x -> Printf.printf "  %s\nexpected to be fibrant universe\n" (showExp x)
   | ExpectedPi x -> Printf.printf "  %s\nexpected to be Pi-type\n" (showExp x)
   | ExpectedSig x -> Printf.printf "  %s\nexpected to be Sigma-type\n" (showExp x)
-  | ExpectedNeutral x -> Printf.printf "  %s\nexpected to be neutral\n" (showExp x)
   | ExpectedSystem x -> Printf.printf "  %s\nexpected to be a system\n" (showExp x)
   | ExpectedSubtype x -> Printf.printf "  %s\nexpected to be a cubical subtype\n" (showExp x)
   | UnknownCommand s -> Printf.printf "Unknown command “%s”\n" s

@@ -89,9 +89,8 @@ exp6:
   | NEGATE exp6 { ENeg $2 }
   | LSQ separated_list(COMMA, part) RSQ { ESystem (System.of_seq (Seq.filter_map parsePartial (List.to_seq $2))) }
   | LPARENS exp1 RPARENS { $2 }
-  | IDENT { 
-getVar $1 }
+  | IDENT { getVar $1 }
 
 declarations:
-  | DEF IDENT params COLON exp2 DEFEQ exp2 { Def ($2, Some (telescope ePi $5 $3), telescope eLam $7 $3) }
+  | DEF IDENT params COLON exp2 DEFEQ exp2 { Def ($2, telescope ePi $5 $3, telescope eLam $7 $3) }
   | AXIOM IDENT params COLON exp2 { Axiom ($2, telescope ePi $5 $3) }
