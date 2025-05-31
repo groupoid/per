@@ -67,53 +67,7 @@ let rec ppExp paren e = let x = match e with
 
 and showExp e = ppExp false e
 and showTeleExp a = match a with | (p, x) -> Printf.sprintf "(%s : %s)" (showIdent p) (showExp x)
-
 and showPiExp a p b = match p with
   | Irrefutable -> Printf.sprintf "%s → %s" (ppExp true a) (showExp b)
   | _           -> Printf.sprintf "Π %s, %s" (showTeleExp (p, a)) (showExp b)
-
-let rec ppValue paren v = let x = match v with
-  | VKan n -> "U" ^ showSubscript n
-  | VLam (x, (p, clos)) -> Printf.sprintf "λ %s, %s" (showTele p x) (showClos p x clos)
-  | VPi (x, (p, clos)) -> showPiValue x p clos
-  | VSig (x, (p, clos)) -> Printf.sprintf "Σ %s, %s" (showTele p x) (showClos p x clos)
-  | VPair (_, fst, snd) -> Printf.sprintf "(%s, %s)" (showValue fst) (showValue snd)
-  | VFst v -> ppValue true v ^ ".1"
-  | VSnd v -> ppValue true v ^ ".2"
-  | VApp (f, x) -> Printf.sprintf "%s %s" (showValue f) (ppValue true x)
-  | Var (p, _) -> showIdent p
-  | VHole -> "?"
-  | VPre n -> "V" ^ showSubscript n
-  | VTransp (p, i) -> Printf.sprintf "transp %s %s" (ppValue true p) (ppValue true i)
-  | VPLam (VLam (_, (p, clos))) -> Printf.sprintf "<%s> %s" (showIdent p) (showClos p VI clos)
-  | VPLam _ -> failwith "showExp: unreachable code was reached"
-  | VAppFormula (f, x) -> Printf.sprintf "%s @ %s" (ppValue true f) (ppValue true x)
-  | VSystem xs -> Printf.sprintf "[%s]" (showSystem showValue xs)
-  | VSub (a, i, u) -> Printf.sprintf "%s[%s ↦ %s]" (ppValue true a) (showValue i) (showValue u)
-  | VI -> !intervalPrim | VDir d -> showDir d
-  | VAnd (a, b) -> Printf.sprintf "%s ∧ %s" (ppValue true a) (ppValue true b)
-  | VOr (a, b) -> Printf.sprintf "%s ∨ %s" (ppValue true a) (ppValue true b)
-  | VNeg a -> Printf.sprintf "-%s" (ppValue paren a)
-  | VPathP v -> "PathP " ^ ppValue true v
-  | VId v -> Printf.sprintf "Id %s" (ppValue true v)
-  | VRef v -> Printf.sprintf "ref %s" (ppValue true v)
-  | VJ v -> Printf.sprintf "idJ %s" (ppValue true v)
-  | VPartialP (t, r) -> Printf.sprintf "PartialP %s %s" (ppValue true t) (ppValue true r)
-  | VHComp (t, r, u, u0) -> Printf.sprintf "hcomp %s %s %s %s" (ppValue true t) (ppValue true r) (ppValue true u) (ppValue true u0)
-  | VInc (t, r) -> Printf.sprintf "inc %s %s" (ppValue true t) (ppValue true r)
-  | VOuc v -> Printf.sprintf "ouc %s" (ppValue true v)
-  in match v with
-  | Var _ | VFst _ | VSnd _ | VI | VPre _ | VSystem _
-  | VKan _ | VHole | VDir _ | VPair _ | VNeg _ -> x
-  | _ -> parens paren x
-
-and showValue v = ppValue false v
-and showTele p x = Printf.sprintf "(%s : %s)" (showIdent p) (showValue x)
-
-and showPiValue x p clos = match p with
-  | Irrefutable -> Printf.sprintf "%s → %s" (ppValue true x) (showClos p x clos)
-  | _           -> Printf.sprintf "Π %s, %s" (showTele p x) (showClos p x clos)
-
-and showClos p t clos = showValue (clos (Var (p, t)))
-and showTerm : term -> string = function Exp e -> showExp e | Value v -> showValue v
 

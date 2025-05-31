@@ -4,6 +4,7 @@ open Error
 open Decl
 open Elab
 open Expr
+open Rbv
 
 let help =
 "Available commands:
@@ -20,7 +21,7 @@ let checkAndEval ctx e : value * value =
 
 let main ctx : command -> unit = function
   | Eval e -> let (t, v) = checkAndEval ctx (freshExp e) in
-    Printf.printf "TYPE: %s\nEVAL: %s\n" (showValue t) (showValue v)
+    Printf.printf "TYPE: %s\nEVAL: %s\n" (showExp (rbV t)) (showExp (rbV v))
   | Action "q" -> exit 0
   | Action "r" -> st := init; raise Restart
   | Action "h" -> print_endline help

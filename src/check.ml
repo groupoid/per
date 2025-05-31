@@ -236,7 +236,7 @@ and inferV v = traceInferV v; match v with
   begin match inferV f with
     | VPartialP (t, _) -> app (t, x)
     | VPi (_, (_, g)) -> g x
-    | v -> raise (ExpectedPi v)
+    | v -> raise (ExpectedPi (rbV v))
   end
   | VAppFormula (f, x)       -> let (p, _, _) = extPathP (inferV f) in appFormula p x
   | VRef v                   -> VApp (VApp (VId (inferV v), v), v)
@@ -264,7 +264,14 @@ and inferV v = traceInferV v; match v with
   end
   | VPartialP (t, _) -> inferV (inferV t)
   | VSystem ts -> VPartialP (VSystem (System.map inferV ts), getFormulaV ts)
-  | v -> raise (ExpectedNeutral v)
+  | VEmpty | VUnit | VBool -> VKan Z.zero
+  | VStar -> VUnit | VFalse | VTrue -> VBool
+  | VIndEmpty t -> implv VEmpty t
+  | VIndUnit t -> recUnit t
+  | VIndBool t -> recBool t
+  | VSup (a, b) -> inferSup a b
+  | VIndW (a, b, c) -> inferIndW a b c
+  | v -> raise (ExpectedNeutral (rbV v))
 
 and extByTag p : value -> value option = function
   | VPair (t, fst, snd) ->
@@ -278,7 +285,7 @@ and evalField p v =
   match extByTag p v with
   | Some k -> k | None -> begin match inferV v with
     | VSig (_, (q, _)) -> if matchIdent p q then vfst v else evalField p (vsnd v)
-    | t -> raise (ExpectedSig t)
+    | t -> raise (ExpectedSig (rbV t))
   end
 
 and upd e = function
@@ -322,6 +329,18 @@ and upd e = function
   | VNeg u               -> negFormula (upd e u)
   | VInc (t, r)          -> VInc (upd e t, upd e r)
   | VOuc v               -> evalOuc (upd e v)
+  | VEmpty               -> VEmpty
+  | VIndEmpty v          -> VIndEmpty (upd e v)
+  | VUnit                -> VUnit
+  | VStar                -> VStar
+  | VIndUnit v           -> VIndUnit (upd e v)
+  | VBool                -> VBool
+  | VFalse               -> VFalse
+  | VTrue                -> VTrue
+  | VIndBool v           -> VIndBool (upd e v)
+  | W (t, (x, g))        -> W (upd e t, (x, g >> upd e))
+  | VSup (a, b)          -> VSup (upd e a, upd e b)
+  | VIndW (a, b, c)      -> VIndW (upd e a, upd e b, upd e c)
 
 and updTerm alpha = function
   | Exp e   -> Exp e
@@ -362,6 +381,18 @@ and rbV v : exp = traceRbV v; match v with
   | VNeg u               -> ENeg (rbV u)
   | VInc (t, r)          -> EInc (rbV t, rbV r)
   | VOuc v               -> EOuc (rbV v)
+  | VEmpty               -> EEmpty
+  | VIndEmpty v          -> EIndEmpty (rbV v)
+  | VUnit                -> EUnit
+  | VStar                -> EStar
+  | VIndUnit v           -> EIndUnit (rbV v)
+  | VBool                -> EBool
+  | VFalse               -> EFalse
+  | VTrue                -> ETrue
+  | VIndBool v           -> EIndBool (rbV v)
+  | W (t, g)             -> rbVTele eW t g
+  | VSup (a, b)          -> ESup (rbV a, rbV b)
+  | VIndW (a, b, c)      -> EIndW (rbV a, rbV b, rbV c)
 
 and rbVTele ctor t (p, g) = let x = Var (p, t) in ctor p (rbV t) (rbV (g x))
 
@@ -423,7 +454,7 @@ and convId v1 v2 =
   with ExpectedNeutral _ -> false
 
 and eqNf v1 v2 : unit = traceEqNF v1 v2;
-  if conv v1 v2 then () else raise (Ineq (v1, v2))
+  if conv v1 v2 then () else raise (Ineq (rbV v1, rbV v2))
 
 (* Type checker itself *)
 and lookup (x : ident) (ctx : ctx) = match Env.find_opt x ctx with
@@ -452,8 +483,8 @@ and check ctx (e0 : exp) (t0 : value) =
     eqNf v0 u0; eqNf v1 u1
   | e, VPre u -> begin
     match infer ctx e with
-    | VKan v | VPre v -> if ieq u v then () else raise (Ineq (VPre u, VPre v))
-    | t -> raise (Ineq (VPre u, t))
+    | VKan v | VPre v -> if ieq u v then () else raise (Ineq (rbV (VPre u), rbV (VPre v)))
+    | t -> raise (Ineq (rbV (VPre u), rbV t))
   end
   | ESystem ts, VPartialP (u, i) ->
     eqNf (eval (getFormula ts) ctx) i;
@@ -462,7 +493,7 @@ and check ctx (e0 : exp) (t0 : value) =
         (app (upd alpha u, VRef vone))) ts;
     checkOverlapping ctx ts
   | e, t -> eqNf (infer ctx e) t
-  with ex -> Printf.printf "When trying to typecheck\n  %s\nAgainst type\n  %s\n" (showExp e0) (showValue t0); raise ex
+  with ex -> Printf.printf "When trying to typecheck\n  %s\nAgainst type\n  %s\n" (showExp e0) (showExp (rbV t0)); raise ex
 
 and checkOverlapping ctx ts =
   System.iter (fun alpha e1 ->
@@ -480,7 +511,7 @@ and infer ctx e : value = traceInfer e; match e with
   | EApp (f, x) -> begin match infer ctx f with
     | VPartialP (t, i) -> check ctx x (isOne i); app (t, eval x ctx)
     | VPi (t, (_, g)) -> check ctx x t; g (eval x ctx)
-    | v -> raise (ExpectedPi v)
+    | v -> raise (ExpectedPi (rbV v))
   end
   | EFst e -> fst (extSigG (infer ctx e))
   | ESnd e -> let (_, (_, g)) = extSigG (infer ctx e) in g (vfst (eval e ctx))
@@ -543,7 +574,7 @@ and inferInd fibrant ctx t e f =
 
 and inferField ctx p e = match infer ctx e with
   | VSig (t, (q, _)) -> if matchIdent p q then t else inferField ctx p (ESnd e)
-  | t                -> raise (ExpectedSig t)
+  | t                -> raise (ExpectedSig (rbV t))
 
 and inferTele ctx p a b =
   ignore (extSet (infer ctx a));

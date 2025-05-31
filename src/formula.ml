@@ -2,6 +2,7 @@ open Prettyprinter
 open Error
 open Ident
 open Expr
+open Rbv
 
 (* Arbitrary formula φ after calling andFormula/orFormula/negFormula
    will have form (α₁ ∧ ... ∧ αₙ) ∨ ... ∨ (β₁ ∧ ... ∧ βₘ),
@@ -32,7 +33,7 @@ let rec extAnd : value -> conjunction = function
   | Var (x, _)        -> Conjunction.singleton (x, One)
   | VNeg (Var (x, _)) -> Conjunction.singleton (x, Zero)
   | VAnd (x, y)       -> Conjunction.union (extAnd x) (extAnd y)
-  | v                 -> raise (ExpectedConjunction v)
+  | v                 -> raise (ExpectedConjunction (rbV v))
 
 (* extOr converts (α₁ ∧ ... ∧ αₙ) ∨ ... ∨ (β₁ ∧ ... ∧ βₘ)
    into list of extAnd results. *)
@@ -135,4 +136,4 @@ let rec solve k x = match k, x with
   | VNeg n, _ -> solve n (negDir x)
   | VOr (f, g), One  | VAnd (f, g), Zero -> union (solve f x) (solve g x)
   | VOr (f, g), Zero | VAnd (f, g), One  -> meets (solve f x) (solve g x)
-  | _, _ -> failwith (Printf.sprintf "Cannot solve: %s = %s" (showValue k) (showDir x))
+  | _, _ -> failwith (Printf.sprintf "Cannot solve: %s = %s" (showExp (rbV k)) (showDir x))

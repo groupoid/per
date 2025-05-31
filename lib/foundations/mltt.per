@@ -32,10 +32,10 @@ def J (A: U) (x: A) (C: D A) (d: C x x (idp A x)) (y: A) (p: Path A x y): C x y 
 def J-1 (O : 𝟏) (A : U) (x : A) (C: D A) (d: C x x (idp A x)) (y: A) (p: Path A x y): C x y p
  := subst (singl A x) (\ (z: singl A x), C x (z.1) (z.2)) (eta A x) (y, p) (contr A x y p) d
 
--- def J-β (O : 𝟏) (A : U) (a : A) (C : D A) (d: C a a (idp A a)) : Path (C a a (idp A a)) d (J A a C d a (idp A a))
---  := subst-comp (singl A a) (\ (z: singl A a), C a (z.1) (z.2)) (eta A a) d
+def J-β (O : 𝟏) (A : U) (a : A) (C : D A) (d: C a a (idp A a)) : Path (C a a (idp A a)) d (J A a C d a (idp A a))
+ := subst-comp (singl A a) (\ (z: singl A a), C a (z.1) (z.2)) (eta A a) d
 
-def MLTT-73 :=
+def MLTT-73 : U :=
   Σ (Π-form  : Π (A : U) (B : A → U), U)
     (Π-ctor₁ : Π (A : U) (B : A → U), Pi ★ A B → Pi ★ A B)
     (Π-elim₁ : Π (A : U) (B : A → U), Pi ★ A B → Pi ★ A B)
@@ -50,13 +50,13 @@ def MLTT-73 :=
     (Σ-comp₃ : Π (A : U) (B : A → U) (p : Sigma ★ A B), Path (Sigma ★ A B) p (pr₁ ★ A B p, pr₂ ★ A B p))
     (=-form  : Π (A : U) (a : A), A → U)
     (=-ctor₁ : Π (A : U) (a : A), Path A a a)
-    (=-elim₁ : Π (A : U) (a : A) (C: D A) (d: C a a (=-ctor₁ A a)) (y: A) (p: Path A a y), C a y p),
---    (=-comp₁ : Π (A : U) (a : A) (C: D A) (d: C a a (=-ctor₁ A a)), Path (C a a (=-ctor₁ A a)) d (=-elim₁ A a C d a (=-ctor₁ A a))),
+    (=-elim₁ : Π (A : U) (a : A) (C: D A) (d: C a a (=-ctor₁ A a)) (y: A) (p: Path A a y), C a y p)
+    (=-comp₁ : Π (A : U) (a : A) (C: D A) (d: C a a (=-ctor₁ A a)), Path (C a a (=-ctor₁ A a)) d (=-elim₁ A a C d a (=-ctor₁ A a))),
     𝟏
 
 def internalizing : MLTT-73
  := ( Pi ★, Π-lambda ★, Π-apply ★, Π-β ★, Π-η ★,
       Sigma ★, pair ★, pr₁ ★, pr₂ ★, Σ-β₁ ★, Σ-β₂ ★, Σ-η ★,
-      Path-1 ★, idp-1 ★, J-1 ★, -- J-β ★,
+      Path-1 ★, idp-1 ★, J-1 ★, J-β ★,
       ★
     )
