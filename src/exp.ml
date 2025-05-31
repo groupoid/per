@@ -213,31 +213,14 @@ type formula =
     | Truth
 
 exception ExpectedDir of string
+
 let getDir x = if x = !zeroPrim then Zero else if x = !onePrim then One else raise (ExpectedDir x)
-
-let face p e d : formula = match getVar p, e, getDir d with
-    | EVar x,  "=", d  -> Equation (x, d)
-    | EDir d1, "=", d2 -> if d1 = d2 then Truth else Falsehood
-    | _,       _,   _  -> failwith "invalid face"
-
-  let extEquation : formula -> ident * dir = function
-    | Equation (x, d) -> (x, d)
-    | _               -> raise (Failure "extEquation")
-
-  let parseFace xs =
-    if List.mem Falsehood xs then None
-    else if List.mem Truth xs then Some eps
-    else Some (Env.of_seq (Seq.map extEquation (List.to_seq xs)))
-
+let face p e d : formula = match getVar p, e, getDir d with | EVar x,  "=", d  -> Equation (x, d) | EDir d1, "=", d2 -> if d1 = d2 then Truth else Falsehood | _, _, _ -> failwith "invalid face"
+let extEquation : formula -> ident * dir = function | Equation (x, d) -> (x, d) | _ -> raise (Failure "extEquation")
+let parseFace xs = if List.mem Falsehood xs then None else if List.mem Truth xs then Some eps else Some (Env.of_seq (Seq.map extEquation (List.to_seq xs)))
 let parsePartial (xs, e) = Option.map (fun ys -> (ys, e)) (parseFace xs)
-
 let impl a b = EPi (a, (Irrefutable, b))
 let prod a b = ESig (a, (Irrefutable, b))
-
-let rec telescope ctor e : tele list -> exp = function
-    | []           -> e
-    | (p, a) :: xs -> ctor p a (telescope ctor e xs)
-
+let rec telescope ctor e : tele list -> exp = function | [] -> e | (p, a) :: xs -> ctor p a (telescope ctor e xs)
 let rec pLam e : ident list -> exp = function [] -> e | x :: xs -> EPLam (ELam (EI, (x, pLam e xs)))
-
 let getDeclName : decl -> string = function Def (p, _, _) | Axiom (p, _) -> p

@@ -42,98 +42,37 @@ let rec negFormula : value -> value = function
   | VOr (f, g)  -> andFormula (negFormula f, negFormula g)
   | v           -> VNeg v
 
-(* extAnd converts (α₁ ∧ ... ∧ αₙ) into set of names equipped with sign. *)
 let rec extAnd : value -> conjunction = function
   | Var (x, _)        -> Conjunction.singleton (x, One)
   | VNeg (Var (x, _)) -> Conjunction.singleton (x, Zero)
   | VAnd (x, y)       -> Conjunction.union (extAnd x) (extAnd y)
   | v                 -> raise (ExpectedConjunction (rbV v))
 
-(* extOr converts (α₁ ∧ ... ∧ αₙ) ∨ ... ∨ (β₁ ∧ ... ∧ βₘ)
-   into list of extAnd results. *)
-let rec extOr : value -> disjunction = function
-  | VOr (x, y) -> Disjunction.union (extOr x) (extOr y)
-  | k          -> Disjunction.singleton (extAnd k)
-
-(* uniq removes all conjunctions that are superset of another,
-   i. e. xy ∨ x = (x ∧ y) ∨ (x ∧ 1) = x ∧ (y ∨ 1) = x ∧ 1 = x.
-   It does not remove conjunction like (x ∧ −x), because algebra of interval
-   is not boolean, it is De Morgan algebra: distributive lattice with De Morgan laws.
-   https://ncatlab.org/nlab/show/De+Morgan+algebra *)
-let uniq t =
-  let super x y = not (Conjunction.equal x y) && Conjunction.subset y x in
-  Disjunction.filter (fun x -> not (Disjunction.exists (super x) t)) t
-
-(* orEq checks equivalence of two formulas
-   of the form (α₁ ∧ ... ∧ αₙ) ∨ ... ∨ (β₁ ∧ ... ∧ βₘ) *)
+let rec extOr : value -> disjunction = function | VOr (x, y) -> Disjunction.union (extOr x) (extOr y) | k -> Disjunction.singleton (extAnd k)
+let uniq t = let super x y = not (Conjunction.equal x y) && Conjunction.subset y x in Disjunction.filter (fun x -> not (Disjunction.exists (super x) t)) t
 let orEq f g = Disjunction.equal (uniq (extOr f)) (uniq (extOr g))
-
-(* andEq check equivalence of two formulas
-   of the form (α₁ ∧ ... ∧ αₙ) *)
 let andEq f g = Conjunction.equal (extAnd f) (extAnd g)
-
-let compatible xs ys =
-  Env.merge (fun _ x y -> match x, y with
-    | Some d1, Some d2 -> Some (d1 = d2)
-    | _,       _       -> Some true) xs ys
-  |> Env.for_all (fun _ b -> b)
-
-let leq xs ys =
-  Env.for_all (fun k d1 -> match Env.find_opt k ys with
-    | Some d2 -> d1 = d2
-    | None    -> false) xs
-
+let compatible xs ys = Env.merge (fun _ x y -> match x, y with | Some d1, Some d2 -> Some (d1 = d2) | _, _ -> Some true) xs ys |> Env.for_all (fun _ b -> b)
+let leq xs ys = Env.for_all (fun k d1 -> match Env.find_opt k ys with | Some d2 -> d1 = d2 | None    -> false) xs
 let lt xs ys = not (Env.equal (=) xs ys) && leq xs ys
-
 let comparable xs ys = leq xs ys || leq ys xs
-
 let meet = Env.union (fun _ x y -> if x = y then Some x else raise IncompatibleFaces)
-
-let nubRev xs =
-  let ys = ref [] in
-  List.iter (fun x ->
-    if not (List.mem x !ys) then
-      ys := x :: !ys) xs;
-  !ys
-
-let meets xs ys =
-  let zs = ref [] in
-  List.iter (fun x ->
-    List.iter (fun y ->
-      try zs := meet x y :: !zs
-      with IncompatibleFaces -> ()) ys) xs;
-  nubRev !zs
-
+let nubRev xs = let ys = ref [] in List.iter (fun x -> if not (List.mem x !ys) then  ys := x :: !ys) xs; !ys
+let meets xs ys = let zs = ref [] in List.iter (fun x -> List.iter (fun y -> try zs := meet x y :: !zs with IncompatibleFaces -> ()) ys) xs; nubRev !zs
 let eps : face = Env.empty
 let meetss = List.fold_left meets [eps]
-
 let union xs ys = nubRev (List.rev_append xs ys)
-
 let mkSystem xs = System.of_seq (List.to_seq xs)
 let unionSystem xs ys = System.union (fun _ _ _ -> raise (Failure "unionSystem")) xs ys
-
-let sign x = function
-  | Zero -> ENeg (EVar x)
-  | One  -> EVar x
-
+let sign x = function | Zero -> ENeg (EVar x) | One  -> EVar x
 let getFace xs = Env.fold (fun x d y -> EAnd (y, sign x d)) xs (EDir One)
 let getFormula ts = System.fold (fun x _ e -> EOr (getFace x, e)) ts (EDir Zero)
-
 let singleton p x = Env.add p x Env.empty
-
-let contrAtom : ident * dir -> value = function
-  | (x, Zero) -> VNeg (Var (x, VI))
-  | (x, One)  -> Var (x, VI)
-
-let contrAnd (t : conjunction) : value =
-  Conjunction.fold (fun e e' -> andFormula (contrAtom e, e')) t (VDir One)
-
-let contrOr (t : disjunction) : value =
-  Disjunction.fold (fun e e' -> orFormula (contrAnd e, e')) t (VDir Zero)
-
+let contrAtom : ident * dir -> value = function | (x, Zero) -> VNeg (Var (x, VI)) | (x, One)  -> Var (x, VI)
+let contrAnd (t : conjunction) : value = Conjunction.fold (fun e e' -> andFormula (contrAtom e, e')) t (VDir One)
+let contrOr (t : disjunction) : value = Disjunction.fold (fun e e' -> orFormula (contrAnd e, e')) t (VDir Zero)
 let getFaceV xs = Env.fold (fun x d y -> andFormula (y, contrAtom (x, d))) xs vone
 let getFormulaV ts = System.fold (fun x _ v -> orFormula (getFaceV x, v)) ts vzero
-
 
 let rec solve k x = match k, x with
   | VDir y, _ -> if x = y then [eps] else []
@@ -143,17 +82,10 @@ let rec solve k x = match k, x with
   | VOr (f, g), Zero | VAnd (f, g), One  -> meets (solve f x) (solve g x)
   | _, _ -> failwith (Printf.sprintf "Cannot solve: %s = %s" (showExp (rbV k)) (showDir x))
 
-
 let freshDim () = let i = freshName "ι" in (i, EVar i, Var (i, VI))
-
 let ieq u v : bool = !Prelude.girard || u = v
-let vfst : value -> value = function
-  | VPair (_, u, _) -> u
-  | v               -> VFst v
-
-let vsnd : value -> value = function
-  | VPair (_, _, u) -> u
-  | v               -> VSnd v
+let vfst : value -> value = function | VPair (_, u, _) -> u | v -> VFst v
+let vsnd : value -> value = function | VPair (_, _, u) -> u | v -> VSnd v
 
 let rec eval (e0 : exp) (ctx : ctx) = match e0 with
   | EPre u               -> VPre u
@@ -209,18 +141,9 @@ and appFormula v x = match v with
       | i         -> VAppFormula (v, i)
     end
 
-and evalAnd a b =
-  match andFormula (a, b) with
-  | VAnd (a, b) -> contrAnd (extAnd (VAnd (a, b)))
-  | v           -> v
-
-and evalOr a b =
-  match orFormula (a, b) with
-  | VOr (a, b) -> contrOr (uniq (extOr (VOr (a, b))))
-  | v          -> v
-
+and evalAnd a b = match andFormula (a, b) with | VAnd (a, b) -> contrAnd (extAnd (VAnd (a, b))) | v -> v
+and evalOr a b = match orFormula (a, b) with | VOr (a, b) -> contrOr (uniq (extOr (VOr (a, b)))) | v -> v
 and border xs v = mkSystem (List.map (fun alpha -> (alpha, upd alpha v)) xs)
-
 and partialv t r = VPartialP (VSystem (border (solve r One) t) , r)
 
 and transport p phi u0 = let (_, _, v) = freshDim () in match appFormula p v, phi with
@@ -445,11 +368,7 @@ and upd e = function
   | VSig (t, (x, g))     -> VSig (upd e t, (x, g >> upd e))
   | VPre u               -> VPre u
   | VPLam f              -> VPLam (upd e f)
-  | Var (i, VI)          ->
-    begin match Env.find_opt i e with
-      | Some d -> VDir d
-      | None   -> Var (i, VI)
-    end
+  | Var (i, VI)          -> begin match Env.find_opt i e with | Some d -> VDir d | None   -> Var (i, VI) end
   | Var (x, t)           -> Var (x, upd e t)
   | VApp (f, x)          -> app (upd e f, upd e x)
   | VFst k               -> vfst (upd e k)
@@ -457,13 +376,7 @@ and upd e = function
   | VHole                -> VHole
   | VPathP v             -> VPathP (upd e v)
   | VPartialP (t, r)     -> VPartialP (upd e t, upd e r)
-  | VSystem ts           ->
-    VSystem (System.bindings ts
-            |> List.filter_map (fun (e', v) ->
-              if compatible e e' then
-                Some (Env.filter (fun k _ -> not (Env.mem k e)) e', upd e v)
-              else None)
-            |> mkSystem)
+  | VSystem ts           -> VSystem (System.bindings ts |> List.filter_map (fun (e', v) -> if compatible e e' then  Some (Env.filter (fun k _ -> not (Env.mem k e)) e', upd e v) else None) |> mkSystem)
   | VSub (t, i, u)       -> VSub (upd e t, upd e i, upd e u)
   | VTransp (p, i)       -> VTransp (upd e p, upd e i)
   | VHComp (t, r, u, u0) -> hcomp (upd e t) (upd e r) (upd e u) (upd e u0)
@@ -612,7 +525,6 @@ and convId v1 v2 =
 
 and eqNf v1 v2 : unit = if conv v1 v2 then () else raise (Ineq (rbV v1, rbV v2))
 
-(* Type checker itself *)
 and lookup (x : ident) (ctx : ctx) = match Env.find_opt x ctx with
   | Some (_, Value v, _) -> v
   | Some (_, Exp e, _)   -> eval e ctx
@@ -727,8 +639,6 @@ and inferInd fibrant ctx t e f =
   let (t', (p, g)) = extPiG (infer ctx e) in eqNf t t'; let k = g (Var (p, t)) in
   ignore (if fibrant then extKan k else extSet k); f (eval e ctx)
 
-(*and inferField ctx p e = snd (getField p (eval ctx e) (infer ctx e)) *)
-
 and inferField ctx p e = match infer ctx e with
   | VSig (t, (q, _)) -> if matchIdent p q then t else inferField ctx p (ESnd e)
   | t                -> raise (ExpectedSig (rbV t))
@@ -756,21 +666,14 @@ and inferTransport (ctx : ctx) (p : exp) (i : exp) =
   check ctx i VI;
   let u0 = act p ezero ctx in
   let u1 = act p eone  ctx in
-
   let (j, x, v) = freshDim () in let ctx' = upLocal ctx j VI v in
   ignore (extKan (infer ctx' (rbV (act p x ctx'))));
-
-  (* Check that p is constant at i = 1 *)
-  List.iter (fun phi ->
-    let rho = faceEnv phi ctx' in
-    eqNf (act p ezero rho) (act p x rho))
-    (solve (eval i ctx) One);
+  List.iter (fun phi -> let rho = faceEnv phi ctx' in eqNf (act p ezero rho) (act p x rho)) (solve (eval i ctx) One);
   implv u0 u1
 
 and inferJ v t =
   let x = freshName "x" in let y = freshName "y" in let pi = freshName "P" in let p = freshName "p" in
   let k = extSet t in let t = VPi (v, (x, fun x -> VPi (v, (y, fun y -> implv (idv v x y) (VPre k))))) in
-
   VPi (t, (pi, fun pi ->
     VPi (v, (x, fun x ->
       implv (app (app (app (pi, x), x), VRef x))
@@ -778,18 +681,10 @@ and inferJ v t =
               VPi (idv v x y, (p, fun p ->
                 app (app (app (pi, x), y), p))))))))))
 
-and recUnit t = let x = freshName "x" in
-  implv (app (t, VStar)) (VPi (VUnit, (x, fun x -> app (t, x))))
-
-and recBool t = let x = freshName "x" in
-  implv (app (t, VFalse)) (implv (app (t, VTrue))
-    (VPi (VBool, (x, fun x -> app (t, x)))))
-
+and recUnit t = let x = freshName "x" in implv (app (t, VStar)) (VPi (VUnit, (x, fun x -> app (t, x))))
+and recBool t = let x = freshName "x" in implv (app (t, VFalse)) (implv (app (t, VTrue)) (VPi (VBool, (x, fun x -> app (t, x)))))
 and wtype a b = W (a, (freshName "x", fun x -> app (b, x)))
-
-and inferSup a b = let t = wtype a b in let x = freshName "x" in
-  VPi (a, (x, fun x -> implv (implv (app (b, x)) t) t))
-
+and inferSup a b = let t = wtype a b in let x = freshName "x" in VPi (a, (x, fun x -> implv (implv (app (b, x)) t) t))
 and inferIndW a b c = let t = wtype a b in
   implv (VPi (a, (freshName "x", fun x ->
     VPi (implv (app (b, x)) t, (freshName "f", fun f ->
@@ -842,26 +737,16 @@ let rec salt (ns : ident Env.t) : exp -> exp = function
   | ESup (a, b)          -> ESup (salt ns a, salt ns b)
   | EIndW (a, b, c)      -> EIndW (salt ns a, salt ns b, salt ns c)
 
-and freshFace ns phi =
-  Env.fold (fun k v -> Env.add (freshVar ns k) v) phi Env.empty
-
-and saltTele ctor ns p a b =
-  let x = fresh p in ctor x (salt ns a) (salt (Env.add p x ns) b)
-
-let freshTele ns : tele -> tele = fun (p, e) ->
-  let q = fresh p in let e' = salt !ns e in
-  ns := Env.add p q !ns; (q, e')
-
+and freshFace ns phi = Env.fold (fun k v -> Env.add (freshVar ns k) v) phi Env.empty
+and saltTele ctor ns p a b = let x = fresh p in ctor x (salt ns a) (salt (Env.add p x ns) b)
+let freshTele ns : tele -> tele = fun (p, e) -> let q = fresh p in let e' = salt !ns e in ns := Env.add p q !ns; (q, e')
 let freshExp = salt Env.empty
-
 let freshDecl : decl -> decl = function
   | Def (p, Some exp1, exp2) -> Def (p, Some (freshExp exp1), freshExp exp2)
   | Axiom (p, exp) -> Axiom (p, freshExp exp)
 
 let ext x = x ^ ".per"
-
 let empty : state = (Env.empty, Files.empty)
-
 let getTerm e ctx = if !Prelude.preeval then Value (eval e ctx) else Exp e
 
 let checkDecl ctx d : ctx =
