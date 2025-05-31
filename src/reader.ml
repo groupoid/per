@@ -30,7 +30,6 @@ let showLine : line -> string = function
   | Decl d -> showDecl d
 
 let showContent x = String.concat "\n" (List.map showLine x)
-
 let showFile : file -> string = function | (p, x) -> Printf.sprintf "module %s where\n%s" p (showContent x)
 
 let rec checkLine st : line -> state =

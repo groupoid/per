@@ -12,9 +12,7 @@ let help =
 
 let init : state = empty
 let st : state ref = ref init
-
-let checkAndEval ctx e : value * value =
-  (Check.infer ctx e, Check.eval e ctx)
+let checkAndEval ctx e : value * value = (Check.infer ctx e, Check.eval e ctx)
 
 let main ctx : command -> unit = function
   | Eval e -> let (t, v) = checkAndEval ctx (freshExp e) in
@@ -25,9 +23,7 @@ let main ctx : command -> unit = function
   | Command (s, _) | Action s -> raise (UnknownCommand s)
   | Nope -> ()
 
-let check filename =
-  st := handleErrors (Reader.checkFile !st) filename !st
-
+let check filename = st := handleErrors (Reader.checkFile !st) filename !st
 let banner = "Per theorem prover [MLTT-80] version 0.5.0"
 
 let loop () =

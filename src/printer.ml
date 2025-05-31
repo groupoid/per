@@ -17,20 +17,20 @@ let showSystem show xs =
   |> List.map (fun (x, e) -> Printf.sprintf "%s → %s" (showFace x) (show e))
   |> String.concat ", "
 
-let rec ppExp paren e = let x = match e with
+let rec ppExp paren e =
+  let x = match e with
   | EKan n -> "U" ^ showSubscript n
+  | EPre n -> "V" ^ showSubscript n
+  | EVar p -> showIdent p
+  | EHole -> "?"
   | EPi (a, (p, b)) -> showPiExp a p b
   | ELam (a, (p, b)) -> Printf.sprintf "λ %s, %s" (showTeleExp (p, a)) (showExp b)
+  | EApp (f, x) -> Printf.sprintf "%s %s" (showExp f) (ppExp true x)
   | ESig (a, (p, b)) -> Printf.sprintf "Σ %s, %s" (showTeleExp (p, a)) (showExp b)
-  | EW (a, (p, b)) -> Printf.sprintf "W %s, %s" (showTeleExp (p, a)) (showExp b)
   | EPair (_, fst, snd) -> Printf.sprintf "(%s, %s)" (showExp fst) (showExp snd)
   | EFst exp -> ppExp true exp ^ ".1"
   | ESnd exp -> ppExp true exp ^ ".2"
   | EField (exp, field) -> ppExp true exp ^ "." ^ field
-  | EApp (f, x) -> Printf.sprintf "%s %s" (showExp f) (ppExp true x)
-  | EVar p -> showIdent p
-  | EHole -> "?"
-  | EPre n -> "V" ^ showSubscript n
   | EPLam (ELam (_, (i, e))) -> Printf.sprintf "<%s> %s" (showIdent i) (showExp e)
   | EPLam _ -> failwith "showExp: unreachable code was reached"
   | EAppFormula (f, x) -> Printf.sprintf "%s @ %s" (ppExp true f) (ppExp true x)
@@ -56,12 +56,13 @@ let rec ppExp paren e = let x = match e with
   | EPartial e -> Printf.sprintf "Partial %s" (ppExp true e)
   | EPartialP (t, r) -> Printf.sprintf "PartialP %s %s" (ppExp true t) (ppExp true r)
   | EInc (t, r) -> Printf.sprintf "inc %s %s" (ppExp true t) (ppExp true r)
-  | EOuc e -> Printf.sprintf "ouc %s" (ppExp true e) in match e with | EVar _ | EFst _ | ESnd _ | EI | EPre _ | ESystem _ | EKan _ | EHole | EDir _ | EPair _ | ENeg _ -> x
-  | _ -> if paren then "(" ^ x ^ ")" else x
+  | EOuc e -> Printf.sprintf "ouc %s" (ppExp true e)
+  | EW (a, (p, b)) -> Printf.sprintf "W %s, %s" (showTeleExp (p, a)) (showExp b)
+ in match e with | EVar _ | EFst _ | ESnd _ | EI | EPre _ | ESystem _ | EKan _
+                 | EHole | EDir _ | EPair _ | ENeg _ | EW _ -> x | _ -> if paren then "(" ^ x ^ ")" else x
 
 and showExp e = ppExp false e
 and showTeleExp a = match a with | (p, x) -> Printf.sprintf "(%s : %s)" (showIdent p) (showExp x)
 and showPiExp a p b = match p with
   | Irrefutable -> Printf.sprintf "%s → %s" (ppExp true a) (showExp b)
   | _           -> Printf.sprintf "Π %s, %s" (showTeleExp (p, a)) (showExp b)
-
