@@ -7,7 +7,7 @@ type name =
 
 let showName : name -> string = function
   | Irrefutable -> "_"
-  | Name (p, n) -> if !Prefs.indices then p ^ "#" ^ string_of_int n else p
+  | Name (p, n) -> if !Prelude.indices then p ^ "#" ^ string_of_int n else p
 
 module Name =
 struct
@@ -37,6 +37,8 @@ end
 
 module Files = Set.Make(String)
 
+type state = ctx * Files.t
+
 let gidx : int64 ref = ref 0L
 let gen () = gidx := Int64.succ !gidx; !gidx
 
@@ -64,9 +66,3 @@ type conjunction = Conjunction.t
 module Disjunction = Set.Make(Conjunction)
 type disjunction = Disjunction.t
 
-let zeroPrim     = ref "0"
-let onePrim      = ref "1"
-let intervalPrim = ref "I"
-
-exception ExpectedDir of string
-let getDir x = if x = !zeroPrim then Zero else if x = !onePrim then One else raise (ExpectedDir x)

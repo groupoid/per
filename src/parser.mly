@@ -1,7 +1,5 @@
-%{ open Module
-   open Formula
-   open Elab
-   open Exp
+%{ open Exp
+   open Prelude
 %}
 
 %token <string> IDENT
@@ -28,8 +26,8 @@
 %nonassoc NEGATE
 %nonassoc DOT
 
-%start <Module.file> file
-%start <Module.command> repl
+%start <Exp.file> file
+%start <Exp.command> repl
 
 %%
 
@@ -40,7 +38,6 @@ telescope : lense telescope { List.append $1 $2 } | lense { $1 }
 params : telescope { $1 } | { [] }
 path : IDENT { getPath $1 }
 face : LPARENS IDENT IDENT IDENT RPARENS { face $2 $3 $4 }
-
 part : face+ ARROW exp2 { ($1, $3) }
 file : MODULE IDENT WHERE line* EOF { ($2, $4) }
 line : IMPORT path+ { Import $2 } | OPTION IDENT IDENT { Option ($2, $3) } | declarations { Decl $1 }

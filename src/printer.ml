@@ -1,6 +1,5 @@
 open Ident
 open Exp
-open Prefs
 open Prelude
 
 exception ExpectedDir of string

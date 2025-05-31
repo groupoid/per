@@ -100,6 +100,25 @@ and record = scope * term * term
 
 and ctx = record Env.t
 
+type command =
+  | Nope
+  | Eval    of exp
+  | Action  of string
+  | Command of string * exp
+
+type decl =
+  | Def of string * exp option * exp
+  | Axiom of string * exp
+
+type line =
+  | Import of string list
+  | Option of string * string
+  | Decl of decl
+
+type content = line list
+
+type file = string * content
+
 (* Implementation *)
 
 let eLam p a b = ELam (a, (p, b))
@@ -126,3 +145,99 @@ let isGlobal : record -> bool = function Global, _, _ -> false | Local, _, _ -> 
 let freshVar ns n = match Env.find_opt n ns with Some x -> x | None -> n
 let mapFace fn phi = Env.fold (fun p d -> Env.add (fn p) d) phi Env.empty
 let freshFace ns = mapFace (freshVar ns)
+
+let rec rbV v = match v with
+  | VLam (t, g)          -> rbVTele eLam t g
+  | VPair (r, u, v)      -> EPair (r, rbV u, rbV v)
+  | VKan u               -> EKan u
+  | VPi (t, g)           -> rbVTele ePi t g
+  | VSig (t, g)          -> rbVTele eSig t g
+  | VPre u               -> EPre u
+  | VPLam f              -> EPLam (rbV f)
+  | Var (x, _)           -> EVar x
+  | VApp (f, x)          -> EApp (rbV f, rbV x)
+  | VFst k               -> EFst (rbV k)
+  | VSnd k               -> ESnd (rbV k)
+  | VHole                -> EHole
+  | VPathP v             -> EPathP (rbV v)
+  | VPartialP (t, r)     -> EPartialP (rbV t, rbV r)
+  | VSystem ts           -> ESystem (System.map rbV ts)
+  | VSub (a, i, u)       -> ESub (rbV a, rbV i, rbV u)
+  | VTransp (p, i)       -> ETransp (rbV p, rbV i)
+  | VHComp (t, r, u, u0) -> EHComp (rbV t, rbV r, rbV u, rbV u0)
+  | VAppFormula (f, x)   -> EAppFormula (rbV f, rbV x)
+  | VId v                -> EId (rbV v)
+  | VRef v               -> ERef (rbV v)
+  | VJ v                 -> EJ (rbV v)
+  | VI                   -> EI
+  | VDir d               -> EDir d
+  | VAnd (u, v)          -> EAnd (rbV u, rbV v)
+  | VOr (u, v)           -> EOr (rbV u, rbV v)
+  | VNeg u               -> ENeg (rbV u)
+  | VInc (t, r)          -> EInc (rbV t, rbV r)
+  | VOuc v               -> EOuc (rbV v)
+  | VEmpty               -> EEmpty
+  | VIndEmpty v          -> EIndEmpty (rbV v)
+  | VUnit                -> EUnit
+  | VStar                -> EStar
+  | VIndUnit v           -> EIndUnit (rbV v)
+  | VBool                -> EBool
+  | VFalse               -> EFalse
+  | VTrue                -> ETrue
+  | VIndBool v           -> EIndBool (rbV v)
+  | W (t, g)             -> rbVTele eW t g
+  | VSup (a, b)          -> ESup (rbV a, rbV b)
+  | VIndW (a, b, c)      -> EIndW (rbV a, rbV b, rbV c)
+
+and rbVTele ctor t (p, g) = let x = Var (p, t) in ctor p (rbV t) (rbV (g x))
+
+let zeroPrim     = ref "0"
+let onePrim      = ref "1"
+let intervalPrim = ref "I"
+
+exception ExpectedDir of string
+let getDir x = if x = !zeroPrim then Zero else if x = !onePrim then One else raise (ExpectedDir x)
+
+let getVar x =
+    let xs = [(!intervalPrim, EI);
+              (!zeroPrim, EDir Zero);
+              (!onePrim, EDir One);
+              ("𝟎", EEmpty);     ("empty", EEmpty);
+              ("𝟏", EUnit);      ("unit", EUnit);
+              ("𝟐", EBool);      ("bool", EBool);
+              ("★", EStar);      ("star", EStar);
+              ("false", EFalse); ("0₂", EFalse);
+              ("true", ETrue);   ("1₂", ETrue)] in
+    match List.assoc_opt x xs with Some e -> e | None -> decl x
+
+type formula =
+    | Falsehood
+    | Equation of ident * dir
+    | Truth
+
+let face p e d : formula = match getVar p, e, getDir d with
+    | EVar x,  "=", d  -> Equation (x, d)
+    | EDir d1, "=", d2 -> if d1 = d2 then Truth else Falsehood
+    | _,       _,   _  -> failwith "invalid face"
+
+  let extEquation : formula -> ident * dir = function
+    | Equation (x, d) -> (x, d)
+    | _               -> raise (Failure "extEquation")
+
+  let parseFace xs =
+    if List.mem Falsehood xs then None
+    else if List.mem Truth xs then Some eps
+    else Some (Env.of_seq (Seq.map extEquation (List.to_seq xs)))
+
+let parsePartial (xs, e) = Option.map (fun ys -> (ys, e)) (parseFace xs)
+
+let impl a b = EPi (a, (Irrefutable, b))
+let prod a b = ESig (a, (Irrefutable, b))
+
+let rec telescope ctor e : tele list -> exp = function
+    | []           -> e
+    | (p, a) :: xs -> ctor p a (telescope ctor e xs)
+
+let rec pLam e : ident list -> exp = function [] -> e | x :: xs -> EPLam (ELam (EI, (x, pLam e xs)))
+
+let getDeclName : decl -> string = function Def (p, _, _) | Axiom (p, _) -> p

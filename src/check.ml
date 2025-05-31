@@ -1,15 +1,172 @@
 open Printer
-open Formula
 open Prelude
 open Error
-open Trace
-open Elab
 open Ident
 open Exp
 
+let extPiG : value -> value * clos = function
+  | VPi (t, g) -> (t, g)
+  | u -> raise (ExpectedPi (rbV u))
+
+let extSigG : value -> value * clos = function
+  | VSig (t, g) -> (t, g)
+  | u -> raise (ExpectedSig (rbV u))
+
+let extSet : value -> Z.t = function
+  | VPre n | VKan n -> n
+  | v               -> raise (ExpectedVSet (rbV v))
+
+let extKan : value -> Z.t = function
+  | VKan n -> n
+  | v      -> raise (ExpectedFibrant (rbV v))
+
+let extPathP = function
+  | VApp (VApp (VPathP v, u0), u1) -> (v, u0, u1)
+  | v                              -> raise (ExpectedPath (rbV v))
+
+let extVar ctx x = match Env.find_opt x ctx with
+  | Some (_, _, Value (Var (y, _))) -> y
+  | Some (_, _, Exp (EVar y)) -> y
+  | _ -> x
+
+let imax a b = match a, b with
+  | VKan u, VKan v -> VKan (max u v)
+  | VPre u, VPre v | VPre u, VKan v | VKan u, VPre v -> VPre (max u v)
+  | VKan _, _ | VPre _, _ -> raise (ExpectedVSet (rbV b))
+  | _, _ -> raise (ExpectedVSet (rbV a))
+
+let idv t x y = VApp (VApp (VId t, x), y)
+let implv a b = VPi (a, (Irrefutable, fun _ -> b))
+
+let hcompval u = EApp (EApp (u, ezero), ERef eone)
+
+(* formula *)
+
+let rec orFormula : value * value -> value = function
+  | VDir One, _  | _, VDir One  -> VDir One
+  | VDir Zero, f | f, VDir Zero -> f
+  | VOr (f, g), h -> orFormula (f, orFormula (g, h))
+  | f, g -> VOr (f, g)
+
+let rec andFormula : value * value -> value = function
+  | VDir Zero, _ | _, VDir Zero -> VDir Zero
+  | VDir One, f  | f, VDir One  -> f
+  | VAnd (f, g), h -> andFormula (f, andFormula (g, h))
+  | VOr (f, g), h | h, VOr (f, g) -> orFormula (andFormula (f, h), andFormula (g, h))
+  | f, g -> VAnd (f, g)
+
+let rec negFormula : value -> value = function
+  | VDir d      -> VDir (negDir d)
+  | VNeg n      -> n
+  | VAnd (f, g) -> orFormula (negFormula f, negFormula g)
+  | VOr (f, g)  -> andFormula (negFormula f, negFormula g)
+  | v           -> VNeg v
+
+(* extAnd converts (α₁ ∧ ... ∧ αₙ) into set of names equipped with sign. *)
+let rec extAnd : value -> conjunction = function
+  | Var (x, _)        -> Conjunction.singleton (x, One)
+  | VNeg (Var (x, _)) -> Conjunction.singleton (x, Zero)
+  | VAnd (x, y)       -> Conjunction.union (extAnd x) (extAnd y)
+  | v                 -> raise (ExpectedConjunction (rbV v))
+
+(* extOr converts (α₁ ∧ ... ∧ αₙ) ∨ ... ∨ (β₁ ∧ ... ∧ βₘ)
+   into list of extAnd results. *)
+let rec extOr : value -> disjunction = function
+  | VOr (x, y) -> Disjunction.union (extOr x) (extOr y)
+  | k          -> Disjunction.singleton (extAnd k)
+
+(* uniq removes all conjunctions that are superset of another,
+   i. e. xy ∨ x = (x ∧ y) ∨ (x ∧ 1) = x ∧ (y ∨ 1) = x ∧ 1 = x.
+   It does not remove conjunction like (x ∧ −x), because algebra of interval
+   is not boolean, it is De Morgan algebra: distributive lattice with De Morgan laws.
+   https://ncatlab.org/nlab/show/De+Morgan+algebra *)
+let uniq t =
+  let super x y = not (Conjunction.equal x y) && Conjunction.subset y x in
+  Disjunction.filter (fun x -> not (Disjunction.exists (super x) t)) t
+
+(* orEq checks equivalence of two formulas
+   of the form (α₁ ∧ ... ∧ αₙ) ∨ ... ∨ (β₁ ∧ ... ∧ βₘ) *)
+let orEq f g = Disjunction.equal (uniq (extOr f)) (uniq (extOr g))
+
+(* andEq check equivalence of two formulas
+   of the form (α₁ ∧ ... ∧ αₙ) *)
+let andEq f g = Conjunction.equal (extAnd f) (extAnd g)
+
+let compatible xs ys =
+  Env.merge (fun _ x y -> match x, y with
+    | Some d1, Some d2 -> Some (d1 = d2)
+    | _,       _       -> Some true) xs ys
+  |> Env.for_all (fun _ b -> b)
+
+let leq xs ys =
+  Env.for_all (fun k d1 -> match Env.find_opt k ys with
+    | Some d2 -> d1 = d2
+    | None    -> false) xs
+
+let lt xs ys = not (Env.equal (=) xs ys) && leq xs ys
+
+let comparable xs ys = leq xs ys || leq ys xs
+
+let meet = Env.union (fun _ x y -> if x = y then Some x else raise IncompatibleFaces)
+
+let nubRev xs =
+  let ys = ref [] in
+  List.iter (fun x ->
+    if not (List.mem x !ys) then
+      ys := x :: !ys) xs;
+  !ys
+
+let meets xs ys =
+  let zs = ref [] in
+  List.iter (fun x ->
+    List.iter (fun y ->
+      try zs := meet x y :: !zs
+      with IncompatibleFaces -> ()) ys) xs;
+  nubRev !zs
+
+let eps : face = Env.empty
+let meetss = List.fold_left meets [eps]
+
+let union xs ys = nubRev (List.rev_append xs ys)
+
+let mkSystem xs = System.of_seq (List.to_seq xs)
+let unionSystem xs ys = System.union (fun _ _ _ -> raise (Failure "unionSystem")) xs ys
+
+let sign x = function
+  | Zero -> ENeg (EVar x)
+  | One  -> EVar x
+
+let getFace xs = Env.fold (fun x d y -> EAnd (y, sign x d)) xs (EDir One)
+let getFormula ts = System.fold (fun x _ e -> EOr (getFace x, e)) ts (EDir Zero)
+
+let singleton p x = Env.add p x Env.empty
+
+let contrAtom : ident * dir -> value = function
+  | (x, Zero) -> VNeg (Var (x, VI))
+  | (x, One)  -> Var (x, VI)
+
+let contrAnd (t : conjunction) : value =
+  Conjunction.fold (fun e e' -> andFormula (contrAtom e, e')) t (VDir One)
+
+let contrOr (t : disjunction) : value =
+  Disjunction.fold (fun e e' -> orFormula (contrAnd e, e')) t (VDir Zero)
+
+let getFaceV xs = Env.fold (fun x d y -> andFormula (y, contrAtom (x, d))) xs vone
+let getFormulaV ts = System.fold (fun x _ v -> orFormula (getFaceV x, v)) ts vzero
+
+
+let rec solve k x = match k, x with
+  | VDir y, _ -> if x = y then [eps] else []
+  | Var (p, _), _ -> [singleton p x]
+  | VNeg n, _ -> solve n (negDir x)
+  | VOr (f, g), One  | VAnd (f, g), Zero -> union (solve f x) (solve g x)
+  | VOr (f, g), Zero | VAnd (f, g), One  -> meets (solve f x) (solve g x)
+  | _, _ -> failwith (Printf.sprintf "Cannot solve: %s = %s" (showExp (rbV k)) (showDir x))
+
+
 let freshDim () = let i = freshName "ι" in (i, EVar i, Var (i, VI))
 
-let ieq u v : bool = !Prefs.girard || u = v
+let ieq u v : bool = !Prelude.girard || u = v
 let vfst : value -> value = function
   | VPair (_, u, _) -> u
   | v               -> VFst v
@@ -18,8 +175,7 @@ let vsnd : value -> value = function
   | VPair (_, _, u) -> u
   | v               -> VSnd v
 
-(* Evaluator *)
-let rec eval (e0 : exp) (ctx : ctx) = traceEval e0; match e0 with
+let rec eval (e0 : exp) (ctx : ctx) = match e0 with
   | EPre u               -> VPre u
   | EKan u               -> VKan u
   | EVar x               -> getRho ctx x
@@ -72,6 +228,16 @@ and appFormula v x = match v with
       | VDir One  -> u1
       | i         -> VAppFormula (v, i)
     end
+
+and evalAnd a b =
+  match andFormula (a, b) with
+  | VAnd (a, b) -> contrAnd (extAnd (VAnd (a, b)))
+  | v           -> v
+
+and evalOr a b =
+  match orFormula (a, b) with
+  | VOr (a, b) -> contrOr (uniq (extOr (VOr (a, b))))
+  | v          -> v
 
 and border xs v = mkSystem (List.map (fun alpha -> (alpha, upd alpha v)) xs)
 
@@ -176,7 +342,7 @@ and transFill p phi u0 j = let (i, _, _) = freshDim () in
   transport (VPLam (VLam (VI, (i, fun i -> appFormula p (andFormula (i, j))))))
     (orFormula (phi, negFormula j)) u0
 
-and closByVal ctx p t e v = traceClos e p v;
+and closByVal ctx p t e v =
   (* dirty hack to handle free variables introduced by type checker,
      for example, while checking terms like p : Path P a b *)
   let ctx' = match v with
@@ -223,8 +389,7 @@ and getRho ctx x = match Env.find_opt x ctx with
 
 and act e i ctx = eval (EAppFormula (e, i)) ctx
 
-(* This is part of evaluator, not type checker *)
-and inferV v = traceInferV v; match v with
+and inferV v = match v with
   | VPi (t, (x, f)) | VSig (t, (x, f)) -> imax (inferV t) (inferV (f (Var (x, t))))
   | VLam (t, (x, f)) -> VPi (t, (x, fun x -> inferV (f x)))
   | VPLam (VLam (VI, (_, g))) -> let t = VLam (VI, (freshName "ι", g >> inferV)) in VApp (VApp (VPathP (VPLam t), g vzero), g vone)
@@ -354,8 +519,7 @@ and faceEnv alpha ctx =
   Env.map (fun (p, t, v) -> if p = Local then (p, updTerm alpha t, updTerm alpha v) else (p, t, v)) ctx
   |> Env.fold (fun p dir -> Env.add p (Local, Value VI, Value (VDir dir))) alpha
 
-(* Readback *)
-and rbV v : exp = traceRbV v; match v with
+and rbV v : exp = match v with
   | VLam (t, g)          -> rbVTele eLam t g
   | VPair (r, u, v)      -> EPair (r, rbV u, rbV v)
   | VKan u               -> EKan u
@@ -405,8 +569,7 @@ and prune ctx x = match Env.find_opt x ctx with
   | Some (_, _, Value v) -> rbV v
   | None                 -> raise (VariableNotFound x)
 
-(* Convertibility *)
-and conv v1 v2 : bool = traceConv v1 v2;
+and conv v1 v2 : bool =
   v1 == v2 || begin match v1, v2 with
     | VKan u, VKan v -> ieq u v
     | VPair (_, a, b), VPair (_, c, d) -> conv a c && conv b d
@@ -467,8 +630,7 @@ and convId v1 v2 =
     | _, _ -> false
   with ExpectedNeutral _ -> false
 
-and eqNf v1 v2 : unit = traceEqNF v1 v2;
-  if conv v1 v2 then () else raise (Ineq (rbV v1, rbV v2))
+and eqNf v1 v2 : unit = if conv v1 v2 then () else raise (Ineq (rbV v1, rbV v2))
 
 (* Type checker itself *)
 and lookup (x : ident) (ctx : ctx) = match Env.find_opt x ctx with
@@ -477,7 +639,7 @@ and lookup (x : ident) (ctx : ctx) = match Env.find_opt x ctx with
   | None                 -> raise (VariableNotFound x)
 
 and check ctx (e0 : exp) (t0 : value) =
-  traceCheck e0 t0; try match e0, t0 with
+  try match e0, t0 with
   | ELam (a, (p, b)), VPi (t, (_, g)) ->
     ignore (extSet (infer ctx a)); eqNf (eval a ctx) t;
     let x = Var (p, t) in let ctx' = upLocal ctx p t x in check ctx' b (g x)
@@ -517,7 +679,7 @@ and checkOverlapping ctx ts =
         eqNf (eval e1 ctx') (eval e2 ctx')
       else ()) ts) ts
 
-and infer ctx e : value = traceInfer e; match e with
+and infer ctx e : value = match e with
   | EVar x -> lookup x ctx
   | EKan u -> VKan (Z.succ u)
   | EPi (a, (p, b)) -> inferTele ctx imax p a b
@@ -654,4 +816,82 @@ and inferIndW a b c = let t = wtype a b in
       implv (VPi (app (b, x), (freshName "b", fun b -> app (c, (app (f, b))))))
         (app (c, VApp (VApp (VSup (a, b), x), f))))))))
     (VPi (t, (freshName "w", fun w -> app (c, w))))
+
+let rec salt (ns : ident Env.t) : exp -> exp = function
+  | ELam (a, (p, b))     -> saltTele eLam ns p a b
+  | EKan n               -> EKan n
+  | EPi (a, (p, b))      -> saltTele ePi ns p a b
+  | ESig (a, (p, b))     -> saltTele eSig ns p a b
+  | EPair (r, a, b)      -> EPair (r, salt ns a, salt ns b)
+  | EFst e               -> EFst (salt ns e)
+  | ESnd e               -> ESnd (salt ns e)
+  | EField (e, p)        -> EField (salt ns e, p)
+  | EApp (f, x)          -> EApp (salt ns f, salt ns x)
+  | EVar x               -> EVar (freshVar ns x)
+  | EHole                -> EHole
+  | EPre n               -> EPre n
+  | EId e                -> EId (salt ns e)
+  | ERef e               -> ERef (salt ns e)
+  | EJ e                 -> EJ (salt ns e)
+  | EPathP e             -> EPathP (salt ns e)
+  | ETransp (p, i)       -> ETransp (salt ns p, salt ns i)
+  | EHComp (t, r, u, u0) -> EHComp (salt ns t, salt ns r, salt ns u, salt ns u0)
+  | EPLam e              -> EPLam (salt ns e)
+  | EAppFormula (p, i)   -> EAppFormula (salt ns p, salt ns i)
+  | EPartial e           -> EPartial (salt ns e)
+  | EPartialP (t, r)     -> EPartialP (salt ns t, salt ns r)
+  | ESub (a, i, u)       -> ESub (salt ns a, salt ns i, salt ns u)
+  | ESystem xs           -> ESystem (System.fold (fun k v -> System.add (freshFace ns k) (salt ns v)) xs System.empty)
+  | EInc (t, r)          -> EInc (salt ns t, salt ns r)
+  | EOuc e               -> EOuc (salt ns e)
+  | EI                   -> EI
+  | EDir d               -> EDir d
+  | EAnd (a, b)          -> EAnd (salt ns a, salt ns b)
+  | EOr (a, b)           -> EOr (salt ns a, salt ns b)
+  | ENeg e               -> ENeg (salt ns e)
+  | EEmpty               -> EEmpty
+  | EIndEmpty e          -> EIndEmpty (salt ns e)
+  | EUnit                -> EUnit
+  | EStar                -> EStar
+  | EIndUnit e           -> EIndUnit (salt ns e)
+  | EBool                -> EBool
+  | EFalse               -> EFalse
+  | ETrue                -> ETrue
+  | EIndBool e           -> EIndBool (salt ns e)
+  | EW (a, (p, b))       -> saltTele eW ns p a b
+  | ESup (a, b)          -> ESup (salt ns a, salt ns b)
+  | EIndW (a, b, c)      -> EIndW (salt ns a, salt ns b, salt ns c)
+
+and freshFace ns phi =
+  Env.fold (fun k v -> Env.add (freshVar ns k) v) phi Env.empty
+
+and saltTele ctor ns p a b =
+  let x = fresh p in ctor x (salt ns a) (salt (Env.add p x ns) b)
+
+let freshTele ns : tele -> tele = fun (p, e) ->
+  let q = fresh p in let e' = salt !ns e in
+  ns := Env.add p q !ns; (q, e')
+
+let freshExp = salt Env.empty
+
+let freshDecl : decl -> decl = function
+  | Def (p, Some exp1, exp2) -> Def (p, Some (freshExp exp1), freshExp exp2)
+  | Axiom (p, exp) -> Axiom (p, freshExp exp)
+
+let ext x = x ^ ".per"
+
+let empty : state = (Env.empty, Files.empty)
+
+let getTerm e ctx = if !Prelude.preeval then Value (eval e ctx) else Exp e
+
+let checkDecl ctx d : ctx =
+  let x = getDeclName d in if Env.mem (ident x) ctx then raise (AlreadyDeclared x);
+  match d with
+  | Def (p, Some a, e) -> ignore (extSet (infer ctx a)); let t = eval a ctx in let v = ident p in check (upGlobal ctx v t (Var (v, t))) e t; Env.add (ident p) (Global, Value t, getTerm e ctx) ctx
+  | Axiom (p, a) -> ignore (extSet (infer ctx a)); let x = ident p in let t = eval a ctx in Env.add x (Global, Value t, Value (Var (x, t))) ctx
+
+let getBoolVal opt = function
+  | "tt" | "true"  -> true
+  | "ff" | "false" -> false
+  | value -> raise (UnknownOptionValue (opt, value))
 

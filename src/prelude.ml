@@ -17,3 +17,15 @@ let rec showSubscript x =
   else if Z.equal x Z.zero then "" else let (y, d) = Z.div_rem x ten in
     showSubscript y ^ getDigit d
 
+let moduleSep = '/'
+
+let getPath = String.split_on_char moduleSep >> String.concat Filename.dir_sep
+
+let trace   : bool ref = ref false
+let indices : bool ref = ref false
+let preeval : bool ref = ref true
+let girard  : bool ref = ref false
+let verbose : bool ref = ref true
+let irrelevance     : bool ref = ref false
+
+let traceHole v gma = ()

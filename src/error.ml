@@ -14,7 +14,6 @@ exception Ineq of exp * exp
 exception ExpectedSubtype of exp
 exception Parser of int * string * string
 exception ExpectedSystem of exp
-exception UnknownOption of string
 exception ExpectedNeutral of exp
 exception ExpectedFibrant of exp
 exception UnknownCommand of string
@@ -24,6 +23,7 @@ exception AlreadyDeclared of string
 exception UnknownPrimitive of string
 exception ExpectedConjunction of exp
 exception InvalidModuleName of string * string
+exception UnknownOption of string
 exception UnknownOptionValue of string * string
 
 let prettyPrintError : exn -> unit = function
