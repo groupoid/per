@@ -1,0 +1,1211 @@
+\documentclass{article}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{amsfonts}
+\usepackage{amscd}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{tikz}
+\usepackage{tikz-cd}
+\usepackage{url}
+\usepackage[utf8]{inputenc}
+\usepackage[english,ukrainian]{babel}
+\usepackage{url}
+
+\lstset{
+  basicstyle=\footnotesize,
+  inputencoding=utf8,
+  extendedchars=true,
+  literate=
+{𝟎}{{\ensuremath{\mathbf{0}}}}1
+{𝟏}{{\ensuremath{\mathbf{1}}}}1
+{≔}{{\ensuremath{\mathrm{:=}}}}1
+{α}{{\ensuremath{\mathrm{\alpha}}}}1
+{ᵂ}{{\ensuremath{^W}}}1
+{β}{{\ensuremath{\mathrm{\beta}}}}1
+{γ}{{\ensuremath{\mathrm{\gamma}}}}1
+{δ}{{\ensuremath{\mathrm{\delta}}}}1
+{ε}{{\ensuremath{\mathrm{\varepsilon}}}}1
+{ζ}{{\ensuremath{\mathrm{\zeta}}}}1
+{η}{{\ensuremath{\mathrm{\eta}}}}1
+{θ}{{\ensuremath{\mathrm{\theta}}}}1
+{ι}{{\ensuremath{\mathrm{\iota}}}}1
+{κ}{{\ensuremath{\mathrm{\kappa}}}}1
+{λ}{{\ensuremath{\mathrm{\lambda}}}}1
+{μ}{{\ensuremath{\mathrm{\mu}}}}1
+{ν}{{\ensuremath{\mathrm{\nu}}}}1
+{ξ}{{\ensuremath{\mathrm{\xi}}}}1
+{π}{{\ensuremath{\mathrm{\mathnormal{\pi}}}}}1
+{ρ}{{\ensuremath{\mathrm{\rho}}}}1
+{σ}{{\ensuremath{\mathrm{\sigma}}}}1
+{τ}{{\ensuremath{\mathrm{\tau}}}}1
+{φ}{{\ensuremath{\mathrm{\varphi}}}}1
+{χ}{{\ensuremath{\mathrm{\chi}}}}1
+{ψ}{{\ensuremath{\mathrm{\psi}}}}1
+{ω}{{\ensuremath{\mathrm{\omega}}}}1
+{Π}{{\ensuremath{\mathrm{\Pi}}}}1
+{П}{{\ensuremath{\mathrm{\Pi}}}}1
+{Γ}{{\ensuremath{\mathrm{\Gamma}}}}1
+{Δ}{{\ensuremath{\mathrm{\Delta}}}}1
+{Θ}{{\ensuremath{\mathrm{\Theta}}}}1
+{Λ}{{\ensuremath{\mathrm{\Lambda}}}}1
+{Σ}{{\ensuremath{\mathrm{\Sigma}}}}1
+{Φ}{{\ensuremath{\mathrm{\Phi}}}}1
+{Ξ}{{\ensuremath{\mathrm{\Xi}}}}1
+{Ψ}{{\ensuremath{\mathrm{\Psi}}}}1
+{Ω}{{\ensuremath{\mathrm{\Omega}}}}1
+{ℵ}{{\ensuremath{\aleph}}}1
+{≤}{{\ensuremath{\leq}}}1
+{≥}{{\ensuremath{\geq}}}1
+{≠}{{\ensuremath{\neq}}}1
+{≈}{{\ensuremath{\approx}}}1
+{≡}{{\ensuremath{\equiv}}}1
+{≃}{{\ensuremath{\simeq}}}1
+{≤}{{\ensuremath{\leq}}}1
+{≥}{{\ensuremath{\geq}}}1
+{∂}{{\ensuremath{\partial}}}1
+{∆}{{\ensuremath{\triangle}}}1 % or \laplace?
+{∫}{{\ensuremath{\int}}}1
+{∑}{{\ensuremath{\mathrm{\Sigma}}}}1
+{→}{{\ensuremath{\rightarrow}}}1
+{⊥}{{\ensuremath{\perp}}}1
+{∞}{{\ensuremath{\infty}}}1
+{∂}{{\ensuremath{\partial}}}1
+{∓}{{\ensuremath{\mp}}}1
+{±}{{\ensuremath{\pm}}}1
+{×}{{\ensuremath{\times}}}1
+{⊕}{{\ensuremath{\oplus}}}1
+{⊗}{{\ensuremath{\otimes}}}1
+{⊞}{{\ensuremath{\boxplus}}}1
+{∇}{{\ensuremath{\nabla}}}1
+{√}{{\ensuremath{\sqrt}}}1
+{⬝}{{\ensuremath{\cdot}}}1
+{•}{{\ensuremath{\cdot}}}1
+{∘}{{\ensuremath{\circ}}}1
+{⁻}{{\ensuremath{^{-}}}}1
+{▸}{{\ensuremath{\blacktriangleright}}}1
+{★}{{\ensuremath{\star}}}1
+{∧}{{\ensuremath{\wedge}}}1
+{∨}{{\ensuremath{\vee}}}1
+{¬}{{\ensuremath{\neg}}}1
+{⊢}{{\ensuremath{\vdash}}}1
+{⟨}{{\ensuremath{\langle}}}1
+{⟩}{{\ensuremath{\rangle}}}1
+{↦}{{\ensuremath{\mapsto}}}1
+{→}{{\ensuremath{\rightarrow}}}1
+{↔}{{\ensuremath{\leftrightarrow}}}1
+{⇒}{{\ensuremath{\Rightarrow}}}1
+{⟹}{{\ensuremath{\Longrightarrow}}}1
+{⇐}{{\ensuremath{\Leftarrow}}}1
+{⟸}{{\ensuremath{\Longleftarrow}}}1
+{∩}{{\ensuremath{\cap}}}1
+{∪}{{\ensuremath{\cup}}}1
+{⊂}{{\ensuremath{\subseteq}}}1
+{⊆}{{\ensuremath{\subseteq}}}1
+{⊄}{{\ensuremath{\nsubseteq}}}1
+{⊈}{{\ensuremath{\nsubseteq}}}1
+{⊃}{{\ensuremath{\supseteq}}}1
+{⊇}{{\ensuremath{\supseteq}}}1
+{⊅}{{\ensuremath{\nsupseteq}}}1
+{⊉}{{\ensuremath{\nsupseteq}}}1
+{∈}{{\ensuremath{\in}}}1
+{∉}{{\ensuremath{\notin}}}1
+{∋}{{\ensuremath{\ni}}}1
+{∌}{{\ensuremath{\notni}}}1
+{∅}{{\ensuremath{\emptyset}}}1
+{∖}{{\ensuremath{\setminus}}}1
+{†}{{\ensuremath{\dag}}}1
+{ℕ}{{\ensuremath{\mathbb{N}}}}1
+{ℤ}{{\ensuremath{\mathbb{Z}}}}1
+{ℝ}{{\ensuremath{\mathbb{R}}}}1
+{ℚ}{{\ensuremath{\mathbb{Q}}}}1
+{ℂ}{{\ensuremath{\mathbb{C}}}}1
+{⌞}{{\ensuremath{\llcorner}}}1
+{⌟}{{\ensuremath{\lrcorner}}}1
+{⦃}{{\ensuremath{ \{\!| }}}1
+{⦄}{{\ensuremath{ |\!\} }}}1
+{ᵁ}{{\ensuremath{^U}}}1
+{₋}{{\ensuremath{_{-}}}}1
+{₁}{{\ensuremath{_1}}}1
+{₂}{{\ensuremath{_2}}}1
+{₃}{{\ensuremath{_3}}}1
+{₄}{{\ensuremath{_4}}}1
+{₅}{{\ensuremath{_5}}}1
+{₆}{{\ensuremath{_6}}}1
+{₇}{{\ensuremath{_7}}}1
+{₈}{{\ensuremath{_8}}}1
+{₉}{{\ensuremath{_9}}}1
+{₀}{{\ensuremath{_0}}}1
+{¹}{{\ensuremath{^1}}}1
+{ₙ}{{\ensuremath{_n}}}1
+{ₘ}{{\ensuremath{_m}}}1
+{↑}{{\ensuremath{\uparrow}}}1
+{↓}{{\ensuremath{\downarrow}}}1
+{▸}{{\ensuremath{\triangleright}}}1
+{∀}{{\ensuremath{\forall}}}1
+{∃}{{\ensuremath{\exists}}}1
+{λ}{{\ensuremath{\mathrm{\lambda}}}}1
+{=}{{\ensuremath{=}}}1
+{<}{{\ensuremath{\textless}}}1
+{>}{{\ensuremath{\textgreater}}}1
+{_}{{$\_$}}1
+{(}{(}1
+{(}{(}1
+{‖}{{\ensuremath{\Vert}}}1
+{+}{{+}}1
+{*}{{*}}1,
+}
+
+\definecolor{ZimaBlue}{RGB}{0, 128, 255}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{example}{Example}
+
+\setlength{\parindent}{15pt}
+
+\newif\ifincludeTOC
+
+\includeTOCtrue
+
+
+
+\begin{document}
+\title{Issue I: Martin-Löf Type Theory}
+\author{Максим Сохацький $^1$}
+\date{ $^1$ Національний технічний університет України \\
+       \small Київський політехнічний інститут імені Ігоря Сікорського \\
+       8 травня 2019 }
+
+\maketitle
+
+\begin{abstract}
+Martin-Löf Type Theory (MLTT), introduced by Per Martin-Löf in 1972,
+is a cornerstone of constructive mathematics, providing a foundation
+for formalizing mathematical proofs and programming languages.
+Its 1973 variant, MLTT-73, incorporates dependent types ($\Pi$, $\Sigma$)
+and identity types (Id), with the J eliminator as a key construct for reasoning about equality.
+Historically, internalizing MLTT in a type checker while constructively
+proving the J eliminator has been challenging due to limitations in pure
+functional systems. This article presents a canonical formalization of
+MLTT-73 and its internalization (without $\eta$-rule for identity types due to gropoid interpretation)
+in \textbf{Per}, a minimal dependent type theory language equipped with cubical type primitives.
+Using presented type theory, we constructively prove induction and computation MLTT-73 inference rules,
+including the J eliminator, and demonstrate suitability as a robust foundation for mathematical languages.
+We also provide logical, categorical, and homotopical interpretations of MLTT
+to contextualize its multidisciplinary significance.
+This work advances the mechanization of constructive mathematics and offers
+a blueprint for future type-theoretic explorations. \\
+\indent \textbf{Keywords}: Martin-Löf Type Theory, Cubical Type Theory.
+\end{abstract}
+
+\ifincludeTOC
+  \tableofcontents
+\fi
+
+\newpage
+\section*{Introduction to MLTT}
+
+For decades, type theorists have sought to fully internalize
+Martin-Löf Type Theory (MLTT) within a type checker, a task
+akin to building a self-verifying blueprint for mathematics.
+
+Introduced by Per Martin-Löf in 1972 \cite{Lof72} MLTT-72 had only $\Pi$ and $\Sigma$ types.
+In 1973, a variant MLTT-73 with $\mathrm{Id}$ types was introduces with countable hierarchy of universes.
+In 1975, a variant of MLTT-75 with $\Pi$ and $\Sigma$, $\mathrm{Id}$, $+$, and $\mathbb{N}$ type
+was officially introduced \cite{Lof75} including infinite predicative hierarchy of universes.
+
+Central to MLTT-73 is the J eliminator, a rule that governs how identity proofs
+are used, but its constructive derivation has long eluded pure
+functional type checkers due to the complexity of equality types.
+This article addresses this challenge by presenting a canonical
+formalization of MLTT-73 and its internalization in \textbf{Per},
+a novel type theory language designed for constructive proofs.
+
+Leveraging cubical type theory \cite{Mortberg17}, this language
+incorporates Path types and universe polymorphism to faithfully
+embed MLTT-73 rules, achieving a constructive proof of the J eliminator.
+This internalization serves as an ultimate test of a type checker’s robustness,
+verifying its ability to fuse and full coverage of
+introduction and elimination rules through beta and eta equalities.
+
+To make MLTT accessible, we provide intuitive interpretations
+of its types: logical (as quantifiers), categorical (as functors),
+and homotopical (as spaces). These perspectives highlight MLTT’s role
+as a bridge between mathematics and computation. Our work builds on
+Martin-Löf’s vision of constructive mathematics, offering a minimal
+yet powerful framework for mechanized reasoning. We aim to inspire
+researchers and practitioners to explore type theory’s potential in
+formalizing mathematics and designing reliable software.
+
+\subsection*{Syntax of Per}
+The BNF notation of type checker language used in code samples consists of:
+i) telescopes (contexts or sigma chains) and definitions;
+ii) pure dependent type theory syntax;
+iii) inductive data definitions (sum chains) and split eliminator;
+iv) cubical face system;
+v) module system. It is slightly based on cubicaltt.
+
+\begin{lstlisting}[mathescape=true]
+F = module I where L
+L = $\varnothing$ | import I | def I T : O := O
+T = $\varnothing$ | ( I : O ) T
+O = I | U | ( O )
+  | Π ( I : O ) , O | λ ( I : O ), O | O → O | O O
+  | Ξ O O O O O | $\langle$ O $\rangle$ O | O @ O | transp O O
+  | 0 | 1 | -O | O ∧ O | O ∨ O | $\Box$
+  | Σ ( I : O ) , O | O .1 | O .2 | O , O
+\end{lstlisting}
+
+Here, = (definition), $\varnothing$ (empty set), $\rvert$ (vertical bar) --- are parts of BNF language and
+$\langle$, $\rangle$, (, ), :=, $\vee$, $\wedge$, -, $\rightarrow$, 0, 1, @, $\Box$,
+$\mathbf{module}$, $\mathbf{import}$, $\mathbf{where}$, $\mathbf{transp}$, $\mathbf{.1}$, $\mathbf{.2}$,
+and $,$ are terminals of the type checker language.
+
+\section{Interpretations}
+
+\subsection{Type Theory}
+
+In MLTT, types are defined by five classes of rules:
+(1) \textit{formation}, specifying the type’s signature;
+(2) \textit{introduction}, defining constructors for its elements;
+(3) \textit{elimination}, providing a dependent induction principle;
+(4) \textit{computation} (beta-equality), governing reduction; and
+(5) \textit{uniqueness} (eta-equality), ensuring canonical forms,
+though the latter is absent for identity types in homotopical settings.
+
+For MLTT-73, we focus on $\Pi$ (dependent function types), $\Sigma$ (dependent pair types),
+and Id (identity types), with the latter replaced by Path types in cubical type theory
+to enable constructive proofs, such as the J eliminator.
+The identity type, introduced in MLTT-73 \cite{Lof75}, is particularly significant,
+enabling reasoning about equality constructively. Unlike MLTT-72, which included
+only $\Pi$ and $\Sigma$ types, MLTT-73 Id types originally enforced uniqueness
+of identity proofs (UIP).
+
+However, modern homotopical interpretations, pioneered by Hofmann and
+Streicher \cite{Hofmann96}, refute UIP, adopting Path types that model equality
+as paths in a space, aligning with cubical type theory’s constructive framework.
+This shift is crucial as Path types facilitate the internalization of MLTT-73 rules.
+
+Type checkers operate within contexts, binding variables to indexed universes,
+built-in types, or user-defined types via de Bruijn indices or names. These
+contexts enable queries about type derivability and code extraction, forming
+the core of type checker.
+
+\subsection{Logic}
+The logical interpretation casts MLTT-75 as a system for
+intuitionistic higher-order logic, where types correspond
+to propositions and terms to proofs, embodying the Curry-Howard
+correspondence. In this view, a type $A$ represents a proposition,
+and a term $a : A$ is a proof of $A$. The $\Pi$-type, $\prod_{x:A} B(x)$,
+encodes universal quantification ($\forall x : A, B(x)$),
+while the $\Sigma$-type, $\sum_{x:A} B(x)$, represents existential
+quantification ($\exists x : A, B(x)$). The identity type, $\text{Id}_A(a, b)$,
+captures propositional equality ($a =_A b$), with the J eliminator providing a
+constructive means to reason about equalities.
+
+\begin{table}[!ht]
+  \begin{tabular}{lcccc}
+    \hline
+       Type Theory & Logic & Category Theory & Homotopy Theory\\
+    \hline
+       A type & class & object & space \\
+       isProp A & proposition & (-1)-truncated object & space \\
+       a:A program & proof & generalized element & point \\
+       $B(x)$ & predicate & indexed object & fibration \\
+       $b(x) : B(x)$ & conditional proof & indexed elements & section\\
+       $\mathbf{0}$ & $\bot$ false & initial object & empty space \\
+       $\mathbf{1}$ & $\top$ true & terminal object & singleton \\
+       $\mathbf{2}$ & boolean & subobject classifier & $\mathbb{S}^0$ \\
+       $A + B$ & $A\vee B$ disjunction & coproduct & coproduct space \\
+       $A\times B$ & $A\wedge B$ conjunction & product & product space \\
+       $A\to B$ & $A\Rightarrow B$ & internal hom & function space \\
+       $\sum{x:A},B(x)$ & $\exists_{x:A}B(x)$ & dependent sum & total space \\
+       $\prod{x:A},B(x)$ & $\forall_{x:A}B(x)$ & dependent product & space of sections\\
+       $\mathbf{Path}_{A}$ & equivalence $=_A$ & path space object & path space $A^I$ \\
+       quotient & equivalence class & quotient & quotient \\
+       W-type & induction & colimit & complex\\
+       type of types & universe & object classifier & universe \\
+       quantum circuit & proof net & string diagram & \\
+      \hline
+  \end{tabular}
+\end{table}
+
+Each type’s five rules (formation, introduction, elimination, computation,
+and uniqueness, except for Id in cubical settings) mirror the structure
+of logical inference rules. For instance, the introduction rule for $\Pi$
+constructs a lambda term (proof of a universal statement), while its elimination
+rule applies the term to an argument (using the universal statement).
+
+MLTT-73 is not standalone framework for constructive mathematics
+but rather the extended foundational core on top of MLTT-72.
+Adding $\mathbf{0}$ (Empty), $\mathbf{1}$ (Unit), $\mathbf{2}$ (Bool) types allows
+resulting type system to internalize intuitionistic propositional logic (IPL),
+via Gödel’s double-negation translation, classical logic can be encoded within IPL \cite{Nordstrom90}.
+
+\subsection{Category Theory}
+
+The categorical interpretation models MLTT-75 within category theory,
+where types are objects, terms are morphisms, and type constructions are functors.
+This perspective, formalized by Cartmell and Seely \cite{Jacobs99},
+views MLTT-75 with $\mathbf{0}$, $\mathbf{1}$, $\mathbf{2}$ types
+as a locally cartesian closed category (LCCC). Here, $\Pi$-types
+correspond to dependent products (right adjoints to base change functors),
+and $\Sigma$-types to dependent sums (left adjoints). The identity
+type, $\text{Id}_A$, is modeled as a path space object, reflecting
+equality as a morphism.
+
+For example, given a morphism $f : A \to B$ in a category, the $\Pi_f$
+functor maps a dependent type over $B$ to one over $A$, generalizing
+function spaces, while $\Sigma_f$ constructs the total space of a fibration.
+
+\subsection{Homotopy Theory}
+
+The homotopical interpretation, a breakthrough in modern type theory,
+views MLTT-73 types as spaces and terms as points, with identity types as paths.
+Introduced by Hofmann and Streicher’s groupoid model \cite{Hofmann96},
+this perspective refutes the uniqueness of identity proofs (UIP) in
+classical MLTT-73, replacing Id with Path types that model equality
+as continuous paths in a space. In cubical type theory, Path types
+are functions from an interval $[0,1]$ to a type, enabling constructive
+proofs of MLTT-73 rules, including the J eliminator.
+
+Here, $\Pi$-types represent spaces of sections, $\Sigma$-types denote
+total spaces of fibrations, and Path types form path spaces ($A^I$).
+This interpretation connects MLTT-73 to homotopy theory, where types
+are $\infty$-groupoids, and fibrations (dependent types) are studied
+geometrically. For instance, a $\Pi$-type can be seen as a trivial fiber
+bundle, with its introduction rule constructing a section \cite{HoTT13}.
+
+\subsection*{Set-theoretical Interpretation}
+
+The set-theoretical interpretation models MLTT-75’s types as sets and
+terms as elements, aligning with classical first-order logic. In this
+view, a type $A$ is a set, and a term $a : A$ is an element. The $\Pi$-type
+represents a set of functions, $\Sigma$-type a disjoint union of sets,
+and $\text{Id}_A(a, b)$ an equality relation. However, this interpretation
+is limited, as it cannot capture higher equalities (e.g., paths between paths)
+or inductive types directly, due to its 0-truncated nature \cite{HoTT13}.
+
+\section{Dependent Type Theory}
+
+\subsection{Dependent Product ($\Pi$)}
+
+$\Pi$ is a dependent product type, the generalization of functions.
+As a function it can serve the wide range of mathematical constructions as its domain and codomain,
+which are in general: objects, types, or spaces; and could have as its
+instance: sets, functions, polynomial functors, infinitesimals, $\infty$-groupoids,
+topological $\infty$-groupoid, CW-complexes,
+categories, languages, etc.
+
+At this light there could be many interpretation of $\Pi$ types from different
+areas of mathematics. We give here three:
+i) logical interpretation of $\Pi$ as $\forall$ quantifier from higher order logic that forms a ground of type theory;
+ii) geomeric intepretation of $\Pi$ as fiber bundle;
+iii) categorical interpretation of functions as functors.
+
+\subsubsection*{Type-theoretical interpretation}
+
+As a logical system dependent type theory could correspond to higher order logic.
+However here only type-theoretical model is given completely.
+
+\begin{definition}[$\Pi$-Formation]
+$\Pi$-types represents the way we create the spaces of
+dependent functions $f: \Pi(x:A), B(x)$ with domain
+in $A$ and codomain in type family $B : A \rightarrow U$ over $A$.
+$$
+  \Pi(A,B) : U =_{def} \prod_{A:U}\prod_{B: A \rightarrow U}\prod_{x:A}B(x).
+$$
+\begin{lstlisting}[mathescape=true]
+def Pi (A : U) (B : A → U) : U := Π (x : A), B x
+\end{lstlisting}
+\end{definition}
+
+\begin{definition}[$\Pi$-Introduction]
+Lambda constructor defines a new lambda function in the space of dependent functions.
+It is called lambda abstraction and displayed as $\lambda x. b(x)$ or $x \mapsto b(x)$.
+$$
+  \lambda (x: A), b(x) : \Pi(A,B) =_{def}
+$$
+$$
+  \prod_{A:U}\prod_{B:A \rightarrow U}\prod_{b:\Pi(A,B)}\lambda x, b_x.
+$$
+\begin{lstlisting}[mathescape=true]
+def lambda (A: U) (B: A → U) (b: Pi A B) : Pi A B := λ (x : A), b x
+def lam (A B: U) (f: A → B) : A → B := λ (x : A), f x
+\end{lstlisting}
+\end{definition}
+
+When codomain is not dependent on valude from domain the function $f: A \rightarrow B$
+is studied in System F$_\omega$, dependent case in studied
+in Systen P$_\omega$ or Calculus of Construction (CoC).
+
+\begin{definition}[$\Pi$-Induction Principle]
+States that if predicate holds for lambda function
+then there is a function from function space to the space of predicate.
+\begin{lstlisting}[mathescape=true]
+def П-ind (A : U) (B : A -> U) (C : Pi A B → U) (g: Π (x: Pi A B), C x)
+  : П (p: Pi A B), C p := $\lambda$ (p: Pi A B), g p
+\end{lstlisting}
+\end{definition}
+
+\begin{definition}[$\Pi$-Elimination]
+Application reduces the term by using recursive substitution.
+$$
+   f\ a : B(a) =_{def} \prod_{A:U}\prod_{B: A \rightarrow U}\prod_{a:A}\prod_{f: \prod_{x:A}B(a)}f(a).
+$$
+\begin{lstlisting}[mathescape=true]
+def apply (A: U) (B: A → U) (f: Pi A B) (a: A) : B a := f a
+def app (A B: U) (f: A → B) (x: A) : B := f x
+\end{lstlisting}
+\end{definition}
+
+\begin{theorem}[$\Pi$-Composition]
+Composition is using application of appropriate singnatures.
+$$f(a) =_{B(a)} (\lambda (x:A) \rightarrow f(a))(a).$$
+\begin{lstlisting}[mathescape=true]
+def $\circ^\top$ ($\alpha$ $\beta$ $\gamma$: U) : U
+ := (β → γ) → (α → β) → (α → γ)
+
+def $\circ$ ($\alpha$ $\beta$ $\gamma$ : U) : $\circ^\top$ $\alpha$ $\beta$ $\gamma$
+ := λ (g: β → γ) (f: α → β) (x: α), g (f x)
+\end{lstlisting}
+\end{theorem}
+
+\begin{theorem}[$\Pi$-Computation]
+$\beta$-rule shows that composition $\mathrm{lam} \circ \mathrm{app}$ could be fused.
+$$ f(a) =_{B(a)} (\lambda (x:A) \rightarrow f(a))(a).$$
+\begin{lstlisting}[mathescape=true]
+def Π-β (A : U) (B : A → U) (a : A) (f : Pi A B)
+  : Path (B a) (apply A B (lambda A B f) a) (f a)
+ := idp (B a) (f a)
+\end{lstlisting}
+\end{theorem}
+
+\begin{theorem} ($\Pi$-Uniqueness).
+$\eta$-rule shows that composition $\mathrm{app} \circ \mathrm{lam}$ could be fused.
+$$ f =_{(x:A)\rightarrow B(a)} (\lambda (y:A) \rightarrow f(y)). $$
+\begin{lstlisting}[mathescape=true]
+def Π-η (A : U) (B : A → U) (a : A) (f : Pi A B)
+  : Path (Pi A B) f (λ (x : A), f x)
+ := idp (Pi A B) f
+\end{lstlisting}
+\end{theorem}
+
+\subsubsection*{Categorical interpretation}
+
+The adjoints $\Pi$ and $\Sigma$ is not the only adjoints could be presented in type system.
+Axiomatic cohesions could contain a set of adjoint pairs as a core type checker operations.
+
+\begin{definition}[Dependent Product]
+The dependent product along morphism $g: B \rightarrow A$ in category $C$ is the right
+adjoint $\Pi_g : C_{/B} \rightarrow C_{/A}$ of the base change functor.
+\end{definition}
+
+\begin{definition}[Space of Sections]
+Let $\mathbf{H}$ be a $(\infty,1)$-topos, and let $E \rightarrow B : \mathbf{H}_{/B}$ a bundle in
+$\mathbf{H}$, object in the slice topos. Then the space of sections $\Gamma_\Sigma(E)$
+of this bundle is the Dependent Product:
+$$ \Gamma_\Sigma(E) = \Pi_\Sigma (E) \in \mathbf{H}. $$
+\end{definition}
+
+\begin{theorem}[Homotopy Equivalence]
+If fiber space is set for all base, and there are two functions
+$f,g : (x:A) \rightarrow B(x)$ and two homotopies between them, then these homotopies are equal.
+\begin{lstlisting}
+def setPi (A: U) (B: A -> U)
+    (h: П (x: A), isSet (B x)) (f g: Pi A B)
+    (p q: Path (Pi A B) f g)
+  : Path (Path (Pi A B) f g) p q
+\end{lstlisting}
+\end{theorem}
+
+\begin{theorem}[Contractability]
+If domain and codomain is contractible then the space of sections is contractible.
+\begin{lstlisting}
+def piIsContr (A: U) (B: A -> U) (u: isContr A)
+    (q: П (x: A), isContr (B x))
+  : isContr (Pi A B)
+\end{lstlisting}
+\end{theorem}
+
+\begin{definition}[Section]
+A section of morphism $f: A \rightarrow B$ in some category is the morphism $g: B \rightarrow A$
+such that $f \circ g: B \xrightarrow{g} A \xrightarrow{f} B$ equals the identity morphism on B.
+\end{definition}
+
+\subsubsection*{Homotopical interpretation}
+
+Geometrically, $\Pi$ type is a space of sections, while the dependent codomain is a space of fibrations.
+Lambda functions are sections or points in these spaces, while the function result is a fibration.
+$\Pi$ type also represents the cartesian family of sets, generalizing the cartesian product of sets.
+
+\begin{definition} (Fiber).
+The fiber of the map $p: E \rightarrow B$ in a point $y: B$ is all points $x: E$ such that $p(x)=y$.
+\end{definition}
+
+\begin{definition} (Fiber Bundle).
+The fiber bundle $ F \rightarrow E \xrightarrow{p} B$ on a total space $E$ with fiber layer $F$ and base $B$ is a
+structure $(F,E,p,B)$ where $p: E \rightarrow B$ is a surjective map with following property:
+for any point $y: B$ exists a neighborhood $U_b$ for which a homeomorphism $f: p^{-1}(U_b) \rightarrow U_b \times F$
+making the following diagram commute.
+\begin{center}
+\begin{tikzpicture}
+  \matrix (m) [matrix of math nodes,row sep=3em,column sep=3em,minimum width=2em]
+  {
+     {p^{-1}(U_b)} & {U_b \times F} \\
+     U_b & \\};
+  \path[-stealth]
+    (m-1-1) edge node [above] {$f$}    (m-1-2)
+            edge node [left]  {$p$}    (m-2-1)
+    (m-1-2) edge node [right] {$pr_1$} (m-2-1);
+\end{tikzpicture}
+\end{center}
+\end{definition}
+
+\begin{definition} (Cartesian Product of Family over B).
+Is a set $F$ of sections of the bundle with elimination map $app : F \times B \rightarrow E$ such that
+\begin{equation}
+F \times B \xrightarrow{app} E \xrightarrow{pr_1} B
+\end{equation}
+$pr_1$ is a product projection, so $pr_1$, $app$ are morphisms
+of slice category $Set_{/B}$. The universal mapping property of $F$:
+for all $A$ and morphism $A \times B \rightarrow E$ in $Set_{/B}$ exists
+unique map $A \rightarrow F$ such that everything commute. So a category
+with all dependent products is necessarily a category with all pullbacks.
+\end{definition}
+
+\begin{definition}[Trivial Fiber Bundle]
+When total space $E$ is cartesian product $\Sigma(B,F)$ and $p = pr_1$
+then such bundle is called trivial $(F,\Sigma(B,F),pr_1,B)$.
+\end{definition}
+
+\begin{theorem}[Functions Preserve Paths]
+For a function $f: (x:A) \rightarrow B(x)$
+there is an $ap_f : x =_A y \rightarrow f(x) =_{B(x)} f(y)$. This is called
+application of $f$ to path or congruence property (for non-dependent case ---
+$cong$ function). This property behaves functoriality
+as if paths are groupoid morphisms and types are objects.
+\end{theorem}
+
+\begin{theorem}[Trivial Fiber Bundle equals Family of Sets]
+Inverse image (fiber) of fiber bundle $(F,B*F,pr_1,B)$ in point $y:B$ equals $F(y)$.
+\begin{lstlisting}[mathescape=true]
+def Family (B : U) : U₁ := B → U
+def Fibration (B : U) : U₁ := Σ (X : U), X → B
+
+def encode-Pi (B : U) (F : B → U) (y : B)
+  : fiber (Sigma B F) B (pr₁ B F) y → F y
+ := λ (x : fiber (Sigma B F) B (pr₁ B F) y),
+      subst B F x.1.1 y (<i> x.2 @ -i) x.1.2
+
+def decode-Pi (B : U) (F : B → U) (y : B)
+  : F y → fiber (Sigma B F) B (pr₁ B F) y
+ := λ (x : F y), ((y, x), idp B y)
+
+def decode-encode-Pi (B : U) (F : B → U) (y : B) (x : F y)
+  : Path (F y) (transp (<i> F (idp B y @ i)) 0 x) x
+ := <j> transp (<i> F y) j x
+
+def encode-decode-Pi (B : U) (F : B → U) (y : B)
+    (x : fiber (Sigma B F) B (pr₁ B F) y)
+  : Path (fiber (Sigma B F) B (pr₁ B F) y)
+         ((y, encode-Pi B F y x), idp B y) x
+ := <i> ( (x.2 @ i, transp (<j> F (x.2 @ i ∨ -j)) i x.1.2),
+          <j> x.2 @ i ∧ j )
+
+def Bundle=Pi (B : U) (F : B → U) (y : B)
+  : PathP (<_> U) (fiber (Sigma B F) B (pr₁ B F) y) (F y)
+ := iso→Path (fiber (Sigma B F) B (pr₁ B F) y) (F y)
+    (encode-Pi B F y) (decode-Pi B F y)
+    (decode-encode-Pi B F y) (encode-decode-Pi B F y)
+\end{lstlisting}
+\end{theorem}
+
+\subsection{Dependent Sum ($\Sigma$)}
+$\Sigma$-type is a space that contains dependent pairs
+where type of the second element depends on the value
+of the first element. As only one point of fiber domain
+present in every defined pair, $\Sigma$-type is also a dependent sum,
+where fiber base is a disjoint union.
+
+$\Sigma$ is a dependent sum type, the generalization of products.
+$\Sigma$ type is a total space of fibration. Element of total
+space is formed as a pair of basepoint and fibration.
+
+Spaces of dependent pairs are using in type theory to model
+cartesian products, disjoint sums, fiber bundles, vector spaces,
+telescopes, lenses, contexts, objects, algebras, $\exists$-type, etc.
+
+\subsubsection*{Type-theoretical interpretation}
+
+\begin{definition}[$\Sigma$-Formation]
+The dependent sum type is indexed over type $A$ in the sense of coproduct or disjoint union,
+where only one fiber codomain $B(x)$ is present in pair.
+$$
+   \Sigma(A,B) : U =_{def} \prod_{A:U}\prod_{B: A \rightarrow U }\sum_{x:A} B(x).
+$$
+\begin{lstlisting}[mathescape=true]
+def Sigma (A: U) (B: A → U) : U := Σ (x: A), B(x)
+\end{lstlisting}
+\end{definition}
+
+\begin{definition} [$\Sigma$-Introduction]
+The dependent pair constructor is a way to create indexed pair over type $A$
+in the sense of coproduct or disjoint union.
+$$
+  \mathbf{pair} : \Sigma(A,B) =_{def} \prod_{A:U}\prod_{B:A \rightarrow U}\prod_{a:A}\prod_{b:B(a)} (a,b).
+$$
+\begin{lstlisting}
+def pair (A: U) (B: A → U) (a: A) (b: B a) : Sigma A B := (a, b)
+\end{lstlisting}
+\end{definition}
+
+\begin{definition} [$\Sigma$-Elimination]
+The dependent projections
+$pr_{1}: \Sigma(A,B) \rightarrow A$ and
+$pr_{2}: \Pi_{x: \Sigma(A,B)} B(pr_{1}(x))$ are pair deconstructors.
+$$
+  \mathbf{pr}_1 : \prod_{A:U} \prod_{B:A \rightarrow U} \prod_{x: \Sigma(A,B)} A
+  =_{def} .1 =_{def} (a,b) \mapsto a.
+$$
+$$
+  \mathbf{pr}_2 : \prod_{A:U} \prod_{B:A \rightarrow U} \prod_{x: \Sigma(A,B)} B(x.1)
+  =_{def} .2 =_{def} (a,b) \mapsto b.
+$$
+\begin{lstlisting}[mathescape=true]
+def pr₁ (A: U) (B: A → U) (x: Sigma A B) : A := x.1
+def pr₂ (A: U) (B: A → U) (x: Sigma A B) : B (pr₁ A B x) := x.2
+\end{lstlisting}
+\end{definition}
+
+\begin{definition} [$\Sigma$-Induction]
+States that if predicate holds for two projections
+then predicate holds for total space.
+\begin{lstlisting}[mathescape=true]
+def Σ-ind (A : U) (B : A -> U)
+    (C : Π (s: Σ (x: A), B x), U)
+    (g: Π (x: A) (y: B x), C (x,y))
+    (p: Σ (x: A), B x)
+  : C p := g p.1 p.2
+\end{lstlisting}
+\end{definition}
+
+\begin{theorem} [$\Sigma$-Computation]
+\begin{lstlisting}[mathescape=true]
+def Σ-β₁ (A : U) (B : A → U) (a : A) (b : B a)
+  : Path A a (pr₁ A B (a ,b)) := idp A a
+
+def Σ-β₂ (A : U) (B : A → U) (a : A) (b : B a)
+  : Path (B a) b (pr₂ A B (a, b)) := idp (B a) b
+\end{lstlisting}
+\end{theorem}
+
+\begin{theorem} [$\Sigma$-Uniqueness]
+\begin{lstlisting}
+def Σ-η (A : U) (B : A → U) (p : Sigma A B)
+  : Path (Sigma A B) p (pr₁ A B p, pr₂ A B p)
+ := idp  (Sigma A B) p
+\end{lstlisting}
+\end{theorem}
+
+\subsubsection*{Categorical interpretation}
+
+\begin{definition} (Dependent Sum).
+The dependent sum along the morphism $f: A \rightarrow B$ in category $C$ is the left
+adjoint $\Sigma_f : C_{/A} \rightarrow C_{/B}$ of the base change functor.
+\end{definition}
+
+\subsubsection*{Set-theoretical interpretation}
+
+\begin{theorem} (Axiom of Choice).
+If for all $x : A$ there is $y : B$ such that $R(x,y)$,
+then there is a function $f : A \rightarrow B$
+such that for all $x : A$ there is a witness of $R(x,f(x))$.
+\begin{lstlisting}
+def ac (A B: U) (R: A -> B -> U)
+    (g: Π (x: A), Σ (y: B), R x y)
+  : Σ (f: A -> B), Π (x: A), R x (f x)
+ := (\(i:A),(g i).1,\(j:A),(g j).2)
+\end{lstlisting}
+\end{theorem}
+
+\begin{theorem} (Total).
+If fiber over base implies another fiber
+over the same base then we can construct total space of section
+over that base with another fiber.
+\begin{lstlisting}
+def total (A:U) (B C : A -> U)
+    (f : Π (x:A), B x -> C x)
+    (w: Σ(x: A), B x)
+  : Σ (x: A), C x := (w.1,f (w.1) (w.2))
+\end{lstlisting}
+\end{theorem}
+
+\subsection{Path Space ($\Xi$)}
+
+The homotopy identity system defines a $\mathbf{Path}$ space indexed over type $A$
+with elements as functions from interval $[0,1]$ to values
+of that path space $[0,1] \rightarrow A$. HoTT book
+defines two induction principles for identity types:
+path induction and based path induction.
+
+This ctt file reflects \footnote{Cyril Cohen, Thierry Coquand, Simon Huber, Anders M{\"{o}}rtberg. Cubical Type Theory: a constructive interpretation of the univalence axiom. 2015. \url{https://5ht.co/cubicaltt.pdf}}{CCHM} cubicaltt model with connections.
+For \footnote{Carlo Angiuli, Brunerie, Coquand, Kuen-Bang Hou (Favonia), Robert Harper, Dan Licata. Cartesian Cubical Type Theory. 2017. \url{https://5ht.co/cctt.pdf}}{ABCFHL} yacctt model with
+variables please refer to ytt file. You may also want to
+read \footnote{Marc Bezem, Thierry Coquand, Simon Huber. A model of type theory in cubical sets. 2014. \url{http://www.cse.chalmers.se/~coquand/mod1.pdf}}{BCH},
+\footnote{Carlo Angiuli, Kuen-Bang Hou (Favonia), Robert Harper. Cartesian Cubical Computational Type Theory: Constructive Reasoning with Paths and Equalities. 2018. \\ \url{https://www.cs.cmu.edu/~cangiuli/papers/ccctt.pdf}}{AFH}.
+There is a \footnote{Andrew Pitts, Ian Orton. Axioms for Modelling Cubical Type Theory in a Topos. 2016. \url{https://arxiv.org/pdf/1712.04864.pdf}}{PO} paper about CCHM axiomatic in a topos.
+
+\subsubsection*{Type-theoretical interpretation}
+
+\begin{definition}[Path Formation]
+$$
+   \Xi(A,x,y) : U =_{def} \prod_{A:U}\prod_{x,y:A} \mathbf{Path}_A(x,y).
+$$
+\begin{lstlisting}
+def Path (A : U) (x y : A) : U
+ := PathP (<_> A) x y
+
+def Path' (A : U) (x y : A)
+ := Π (i : I), A [∂ i |-> [(i = 0) → x, (i = 1) → y ]]
+\end{lstlisting}
+\end{definition}
+
+\begin{definition}[Path Introduction]
+$$
+   \mathbf{idp} : x \equiv_A x =_{def} \prod_{A:U}\prod_{x:A} [i] x.
+$$
+\begin{lstlisting}[mathescape=true]
+def idp (A: U) (x: A) : Path A x x := <_> x
+\end{lstlisting}
+Returns a reflexivity path space for a given value of the type.
+The inhabitant of that path space is the lambda on the homotopy
+interval $[0,1]$ that returns a constant value $x$. Written in
+syntax as $[i]x$.
+\end{definition}
+
+\begin{definition}[Path Application]
+You can apply face to path.
+\begin{lstlisting}
+def at0 (A: U) (a b: A) (p: Path A a b) : A := p @ 0
+def at1 (A: U) (a b: A) (p: Path A a b) : A := p @ 1
+\end{lstlisting}
+\end{definition}
+
+\begin{definition}[Path Composition]
+Composition operation allows to build a new path by given to paths
+in a connected point.
+\begin{center}
+\begin{tikzpicture}
+  \matrix (m) [matrix of math nodes,row sep=3em,column sep=3em,minimum width=3em]
+  {
+     a & c \\ % (1,1) (1,2)
+     a & b \\ % (2,1) (2,2)
+  };
+  \path[-stealth]
+    (m-1-1) edge node [above] {$comp$} (m-1-2)
+    (m-2-1) edge node [left]  {$\lambda(i:I)\rightarrow a$} (m-1-1)
+    (m-2-2) edge node [right] {$q$} (m-1-2)
+    (m-2-1) edge node [above] {$p @ i$} (m-2-2);
+\end{tikzpicture}
+\end{center}
+\begin{lstlisting}[mathescape=true]
+def pcomp (A : U) (a b c : A) (p : Path A a b) (q : Path A b c)
+  : Path A a c
+ := <i> hcomp A (∂ i) (λ (j : I), [(i = 0) → a,
+                                   (i = 1) → q @ j]) (p @ i)
+\end{lstlisting}
+\end{definition}
+
+\begin{theorem}[Path Inversion] \indent
+\begin{lstlisting}[mathescape=true]
+def inv (A: U) (a b: A) (p: Path A a b) : Path A b a := <i> p @ -i
+\end{lstlisting}
+\end{theorem}
+
+\begin{definition}[Connections]
+Connections allows you to build square with given only one element of path:
+i) $\lambda\ (i,j: I) \rightarrow p\ @\ min(i,j)$;
+ii) $\lambda\ (i,j:I) \rightarrow p\ @\ max(i,j)$.
+\begin{center}
+  \begin{tikzpicture}
+  \matrix (m) [matrix of math nodes,row sep=3em,column sep=3em,minimum width=3em]
+  {
+     a & b \\ % (1,1) (1,2)
+     a & a                    \\ % (2,1) (2,2)
+  };
+  \path[-stealth]
+    (m-1-1) edge node [above] {$p$}    (m-1-2)
+    (m-2-1) edge node [left]  {$\lambda\ (i:I)\rightarrow a$}    (m-1-1)
+    (m-2-2) edge node [right] {$p$} (m-1-2)
+    (m-2-1) edge node [above] {$\lambda\ (i:I)\rightarrow a$} (m-2-2);
+  \end{tikzpicture}
+  \begin{tikzpicture}
+  \matrix (m) [matrix of math nodes,row sep=3em,column sep=3em,minimum width=3em]
+  {
+     b & b \\ % (1,1) (1,2)
+     a & b                    \\ % (2,1) (2,2)
+  };
+  \path[-stealth]
+    (m-1-1) edge node [above] {$\lambda\ (i:I) \rightarrow b$}    (m-1-2)
+    (m-2-1) edge node [left]  {$p$}    (m-1-1)
+    (m-2-2) edge node [right] {$\lambda\ (i:I) \rightarrow b$} (m-1-2)
+    (m-2-1) edge node [above] {$p$} (m-2-2);
+  \end{tikzpicture}
+\end{center}
+\begin{lstlisting}[mathescape=true]
+def meet (A: U) (a b: A) (p: Path A a b)
+  : PathP (<x> Path A a (p@x)) (<i>a) p
+  = <x y> p @ (x /\ y)
+
+def join (A: U) (a b: A) (p: Path A a b)
+  : PathP (<x> Path A (p@x) b) p (<i>b)
+  = <y x> p @ (x \/ y)
+\end{lstlisting}
+\end{definition}
+
+\begin{theorem}[Congruence]
+Is a map between values of one type
+to path space of another type by an encode function between types.
+Implemented as lambda defined on $[0,1]$ that returns
+application of encode function to path application of
+the given path to lamda argument $ \lambda (i:I), f (p @ i)$
+for both cases.
+$$
+   \mathrm{ap} : f(a)\equiv f(b) =_{def}
+$$
+$$
+   \prod_{A:U}\prod_{a,x:A}\prod_{B:A\rightarrow U}\prod_{f: \Pi(A,B)}\prod_{p:a\equiv_A x}[i] f(p@i).
+$$
+\begin{lstlisting}
+def ap (A B: U) (f: A -> B) (a b: A) (p: Path A a b)
+  : Path B (f a) (f b)
+
+def apd (A: U) (a x: A) (B: A -> U)
+    (f: A -> B a) (b: B a) (p: Path A a x)
+  : Path (B a) (f a) (f x)
+\end{lstlisting}
+\end{theorem}
+
+\begin{theorem}[Generalized Transport Kan Operation]
+Transports a value of the left type to the value of the right type
+by a given path element of the path space between left and right types.
+$$
+  \mathrm{transport} : A(0) \rightarrow A(1) =_{def}
+$$
+$$
+   \prod_{A:I\rightarrow U}\prod_{r:I} \lambda x,\mathbf{transp}([i]A(i),0,x).
+$$
+\begin{lstlisting}
+def transp' (A: U) (x y: A) (p : PathP (<_>A) x y) (i: I)
+ := transp (<i> (\(_:A),A) (p @ i)) i x
+
+def transp-U (A B: U) (p : PathP (<_>U) A B) (i: I)
+ := transp (<i> (\(_:U),U) (p @ i)) i A
+\end{lstlisting}
+\end{theorem}
+
+\begin{definition} (Singleton).
+\begin{lstlisting}
+def singl (A: U) (a: A): U := Σ (x: A), Ξ A a x
+\end{lstlisting}
+\end{definition}
+
+\begin{theorem} (Singleton Instance).
+\begin{lstlisting}
+def eta (A: U) (a: A): singl A a := (a, idp A a)
+\end{lstlisting}
+\end{theorem}
+
+\begin{theorem} (Singleton Contractability).
+\begin{lstlisting}
+def contr (A : U) (a b : A) (p : Ξ A a b)
+  : Ξ (singl A a) (eta A a) (b, p)
+ := <i> (p @ i, <j> p @ i /\ j)
+\end{lstlisting}
+\end{theorem}
+
+\begin{theorem} (Path Elimination).
+\begin{lstlisting}
+def subst (A : U) (P : A -> U) (a b : A)
+    (p : Ξ A a b) (e : P a) : P b
+ := transp (<i> P (p @ i)) 0 e
+
+def D (A : U) : U₁
+ := Π (x y : A), Path A x y → U
+
+def J (A: U) (x: A) (C: D A) (d: C x x (idp A x))
+    (y: A) (p: Ξ A x y) : C x y p
+ := subst (singl A x) (\ (z: singl A x), C x (z.1) (z.2))
+    (eta A x) (y, p) (contr A x y p) d
+\end{lstlisting}
+\end{theorem}
+
+\begin{theorem} (Path Computation).
+\begin{lstlisting}
+def trans_comp (A : U) (a : A)
+  : Ξ A a (transport A A (<i> A) a)
+ := <j> transp (<_> A) -j a
+
+def subst-comp (A: U) (P: A → U) (a: A) (e: P a)
+  : Ξ (P a) e (subst A P a a (idp A a) e)
+ := trans_comp (P a) e
+
+def J-β (A : U) (a : A) (C : D A) (d: C a a (idp A a))
+  : Ξ (C a a (idp A a)) d (J A a C d a (idp A a))
+ := subst-comp (singl A a)
+    (\ (z: singl A a), C a (z.1) (z.2)) (eta A a) d
+\end{lstlisting}
+\end{theorem}
+
+Note that Path type has no Eta rule due to groupoid interpretation.
+
+\subsubsection*{Groupoid interpretation}
+The groupoid interpretation of type theory is well known article by Martin Hofmann and Thomas Streicher,
+more specific interpretation of identity type as infinity groupoid.
+
+
+\subsection{Universes (U$_i$)}
+In Martin-Löf Type Theory (MLTT), universes are types that classify other types,
+forming a cumulative hierarchy to manage type formation and avoid paradoxes like
+Russell’s. MLTT-73 adopts a predicative hierarchy
+of universes, denoted \( U_i \) for \( i \in \mathbb{N} \), where each
+universe \( U_i \) is a type in the next universe \( U_{i+1} \).
+
+This section defines the universe hierarchy constructively,
+specifying formation, introduction, and computation rules,
+and illustrates their encoding in \textbf{Per}.
+
+\begin{definition}[Universe Formation]
+For each natural number \( i \in \mathbb{N} \), there exists a universe \( U_i \), which is a type classifying small types at level \( i \). The formation rule is:
+$\Gamma \vdash U_i : U_{i+1}$.
+Universes are introduced as constructors, with each \( U_i \) inhabiting \( U_{i+1} \).
+\begin{lstlisting}[mathescape=true]
+def U (i : Nat) : U (suc i)
+\end{lstlisting}
+\end{definition}
+
+\begin{definition}[Universe Introduction]
+A type \( A \) belongs to a universe \( U_i \) if it can be derived as a type at
+level \( i \). For MLTT-73, this includes base types (e.g., \( \Pi \), \( \Sigma \), Path),
+user-defined types, and universes \( U_j \) for \( j < i \). The introduction rule is:
+$\Gamma ; A \vdash A : U_i$, where $i$ is the minimal level such that $A \in U_i$.
+Types like \( \Pi(A, B) \), \( \Sigma(A, B) \), and \( \Xi(A, x, y) \) are
+explicitly landed in a universe:
+\begin{lstlisting}[mathescape=true]
+def Pi (A : U i) (B : A -> U i) : U i := Π (x : A), B x
+def Sigma (A : U i) (B : A -> U i) : U i := Σ (x : A), B x
+def Path (A : U i) (x y : A) : U i := PathP (<_> A) x y
+\end{lstlisting}
+\end{definition}
+
+\begin{definition}[Cumulative Hierarchy]
+The universe hierarchy is cumulative, meaning
+if \( A : U_i \), then \( A : U_j \) for all \( j > i \).
+This ensures flexibility in type checking, as types can be lifted to higher universes.
+This is implicit in the type checker’s ability
+to assign types to higher universes when needed.
+\end{definition}
+
+\begin{definition}[Predicative Rules]
+The formation of dependent types (e.g., \( \Pi \), \( \Sigma \)) lands
+in the maximum of the universe levels of its constituents. For example,
+for \( \Pi \)-types: $\Gamma \vdash A : U_i$ and $\Gamma, x : A \vdash B(x) : U_j$ we
+can derive $\Gamma \vdash \Pi (x : A), B(x) : U_{\max(i, j)}$
+This predicative rule ensures that the universe level reflects
+the highest level of the domain or codomain.
+\begin{lstlisting}[mathescape=true]
+def Level (i j : $\mathbf{N}$) (A : U i) (B : A -> U j)
+  : U (max i j) := Π (x : A), B x
+\end{lstlisting}
+Similar rules apply to \( \Sigma \) and Path types,
+ensuring all MLTT-73 types are predicatively landed.
+\end{definition}
+
+\begin{definition}[Definitional Equality]
+Universes support definitional equality, where two types \( A, B : U_i \)
+are equal if their normalized forms are identical.
+This is crucial for type checking in MLTT-73.
+\end{definition}
+
+\subsection*{Contexts}
+In Martin-Löf Type Theory (MLTT), contexts define the typing
+environment for judgments, consisting of a sequence of typed
+variable declarations that enable the derivation of types and
+terms.
+
+Context as metatheoretical entity couldn't be internalized but could be
+imagined as telescopes, ensuring well-formedness and supporting
+constructive type checking. Explicit context rendering could be
+seen in categorical interpretation of dependent type theory
+
+\begin{definition}[Empty Context]
+The empty context contains no variable declarations and serves as the base case for context formation.
+It is represented as the unit type, indicating an empty telescope:
+\[
+\gamma_0 : \Gamma =_{def} \star.
+\]
+\end{definition}
+
+\begin{definition}[Context Comprehension]
+A context is extended by adding a variable declaration for a
+type dependent on the existing context. For a context \( \Gamma \)
+and a type \( A \) over \( \Gamma \), the extended context is:
+\[
+\Gamma ; A =_{def} \sum_{\gamma:\Gamma}A(\gamma).
+\]
+This is encoded as a dependent pair,
+binding a variable to a type in the context.
+\end{definition}
+
+\begin{definition} (Context Derivability).
+A type \( A \) is derivable in a context \( \Gamma \) if it can be
+assigned to a universe given the variables in \( \Gamma \):
+\[
+\Gamma \vdash A =_{def} \prod_{\gamma:\Gamma}A(\gamma).
+\]
+This corresponds to a dependent function type,
+ensuring \( A \) is well-typed across all context elements:
+For terms, a term \( t : A \) in \( \Gamma \), written \( \Gamma \vdash t : A \),
+is derivable if it respects the context’s bindings.
+\end{definition}
+
+\begin{definition}[Terms]
+A term is an element of a type within a context.
+Given \( \Gamma \vdash A : U_i \), a term \( t \)
+satisfies \( \Gamma \vdash t : A \). Terms include
+variables, constructors (e.g., \( \lambda \) for \( \Pi \),
+pairs for \( \Sigma \)), and applications, defined by MLTT-73’s
+syntax.
+\end{definition}
+
+Contexts provide a structured environment for deriving judgments.
+They integrate with the any reasoning framework, supporting and ensuring
+sequential constructive verification.
+
+\subsection*{MLTT-73}
+Here is given formal model of type-theoretical interpretation of Martin-Löf Type Theory.
+It combines 4 Path rules (no eta), 5 $\Pi$ rules, and 6 $\Sigma$ rules (two elims).
+The proof is provided by direct embedding (internalizing) the model intro the model
+of type checker which is even more powerful.
+
+\begin{definition} (MLTT-73).
+The MLTT as a Type is defined by taking all rules
+for $\Pi$, $\Sigma$ and Path types into one $\Sigma$ telescope or context.
+\begin{lstlisting}[mathescape=true]
+def MLTT (A : U) : U₁ ≔
+  Σ (Π-form  : Π (B : A → U), U)
+    (Π-ctor₁ : Π (B : A → U), Pi A B → Pi A B)
+    (Π-elim₁ : Π (B : A → U), Pi A B → Pi A B)
+    (Π-comp₁ : Π (B : A → U) (a : A) (f : Pi A B),
+               Ξ (Ξ (B a) (Π-elim₁ B (Π-ctor₁ B f) a) (f a))
+    (Π-comp₂ : Π (B : A → U) (a : A) (f : Pi A B),
+               Ξ (Pi A B) f (λ (x : A), f x))
+    (Σ-form  : Π (B : A → U), U)
+    (Σ-ctor₁ : Π (B : A → U) (a : A) (b : B a) , Sigma A B)
+    (Σ-elim₁ : Π (B : A → U) (p : Sigma A B), A)
+    (Σ-elim₂ : Π (B : A → U) (p : Sigma A B), B (pr₁ A B p))
+    (Σ-comp₁ : Π (B : A → U) (a : A) (b: B a),
+               Ξ A a (Σ-elim₁ B (Σ-ctor₁ B a b)))
+    (Σ-comp₂ : Π (B : A → U) (a : A) (b: B a),
+               Ξ (B a) b (Σ-elim₂ B (a, b)))
+    (Σ-comp₃ : Π (B : A → U) (p : Sigma A B),
+               Ξ (Sigma A B) p (pr₁ A B p, pr₂ A B p))
+    (=-form  : Π (a : A), A → U)
+    (=-ctor₁ : Π (a : A), Path A a a)
+    (=-elim₁ : Π (a : A) (C: D A) (d: C a a (=-ctor₁ a))
+                 (y: A) (p: Path A a y), C a y p)
+    (=-comp₁ : Π (a : A) (C: D A) (d: C a a (=-ctor₁ a)),
+               Ξ (C a a (=-ctor₁ a)) d
+                 (=-elim₁ a C d a (=-ctor₁ a))), 𝟏
+\end{lstlisting}
+\end{definition}
+
+\begin{theorem} (Model Check).
+There is an instance of MLTT.
+\begin{lstlisting}
+def internalizing (A : U) : MLTT A
+ := ( Pi A, Π-lambda A, Π-apply A, Π-β A, Π-η A,
+      Sigma A, pair A, pr₁ A, pr₂ A, Σ-β₁ A, Σ-β₂ A, Σ-η A,
+      Path A, idp A, J A, J-β A, ★  )
+\end{lstlisting}
+\end{theorem}
+
+The result of the work is a \texttt{mltt.ctt} file which can be runned using \texttt{cubicaltt}.
+Note that MLTT-73 internalization includes only eliminator and computational rule for identity
+system (without uniquness rule), as cubical Path spaces refute uniqueness of identity proofs.
+
+\subsection*{Conclusions}
+
+This article presents a landmark achievement in type theory:
+the constructive internalization of Martin-Löf Type Theory (MLTT-73) computational rules
+within the \textbf{Per} language, a minimal type system equipped with
+cubical type theory primitives.
+
+This internalization, formalized also in the \texttt{mltt.ctt} for double checking,
+validates MLTT-73 in \texttt{cubicaltt}, providing a rigorous test
+of a type checker's ability to fuse introduction and elimination
+rules through computational and uniqueness equations.
+
+\begin{table}[!ht]
+  \begin{tabular}{lccccccccc}
+    \hline
+       Language    & $U^n$ & $\Pi$ & $\Sigma$ & Id & $\Xi$ & $\mathbb{N}$ & 0/1/2 & $W$ & Ind  \\
+    \hline
+Systen P$_\omega$ (CoC-88)  &   & x &   &   &   &   &   &   &   \\
+       MLTT-72              &   & x & x &   &   &   &   &   &   \\
+       Henk (ECC)           & x & x &   &   &   &   &   &   &   \\
+       Errett (LCCC/IPL)    & x & x & x &   &   &   & x &   &   \\
+       MLTT-73              & x & x & x & x &   &   &   &   &   \\
+       Per                  & x & x & x &   & x &   &   &   &   \\
+       MLTT-75              & x & x & x & x &   & x & x &   &   \\
+       MLTT-80              & x & x & x & x &   & & x   & x &   \\
+       Anders (HTS)         & x & x & x & x & x &   & x & x &   \\
+       Frank (CoC+CIC)      & x & x &   &   &   &   &   &   & x \\
+       Christine (Coq)      & x & x & x & x &   &   &   &   & x \\
+    \hline
+       cubicaltt            &   & x & x &   & x &   &   &   & x \\
+       Agda                 & x & x & x & x & x &   &   &   & x \\
+       Lean                 & x & x & x & x &   &   &   &   & x \\
+       NuPRL                &   & x & x & x &   &   &   &   & x \\
+    \hline
+  \end{tabular}
+\end{table}
+
+The significance of this work lies in its constructive approach to the
+J eliminator, a cornerstone of MLTT-73 identity type, which previous
+internalization attempts failed to derive constructively \cite{Lof75, Nordstrom90}.
+By leveraging cubical type theory’s Path types and operations (e.g., connections,
+compositions), the type checker achieves a compact foundational core for verifying mathematics.
+
+The article also elucidates MLTT-73 versatility through logical, categorical,
+homotopical, and set-theoretical interpretations, offering a comprehensive
+landscape for researchers and newcomers to type theory.
+
+\begin{thebibliography}{99}
+
+\bibitem{HoTT13} Vladimir Voevodsky et al., \textit{Homotopy Type Theory}, in \textit{Univalent Foundations of Mathematics}, 2013.
+\bibitem{Lof72} Per Martin-Löf and Giovanni Sambin, \textit{The Theory of Types}, in \textit{Studies in Proof Theory}, 1972.
+\bibitem{Lof75} Per Martin-Löf, \textit{An Intuitionistic Theory of Types: Predicative Part}, in \textit{Studies in Logic and the Foundations of Mathematics}, vol. 80, pp. 73–118, 1975. \texttt{doi:10.1016/S0049-237X(08)71945-1}
+\bibitem{Lof84} Per Martin-Löf and Giovanni Sambin, \textit{Intuitionistic Type Theory}, in \textit{Studies in Proof Theory}, 1984.
+\bibitem{Coq88} Thierry Coquand and Gérard Huet, \textit{The Calculus of Constructions}, in \textit{Information and Computation}, pp. 95–120, 1988. \texttt{doi:10.1016/0890-5401(88)90005-3}
+\bibitem{Hofmann96} Martin Hofmann and Thomas Streicher, \textit{The Groupoid Interpretation of Type Theory}, in \textit{Venice Festschrift}, Oxford University Press, pp. 83–111, 1996. 
+\bibitem{Hermida95} Claudio Hermida and Bart Jacobs, \textit{Fibrations with Indeterminates: Contextual and Functional Completeness for Polymorphic Lambda Calculi}, in \textit{Mathematical Structures in Computer Science}, vol. 5, pp. 501–531, 1995.
+\bibitem{Dybjer08} Alexandre Buisse and Peter Dybjer, \textit{The Interpretation of Intuitionistic Type Theory in Locally Cartesian Closed Categories -- an Intuitionistic Perspective},in \textit{Electronic Notes in Theoretical Computer Science}, pp. 21–32, 2008. \texttt{doi:10.1016/j.entcs.2008.10.003}
+\bibitem{Bishop67} Errett Bishop, \textit{Foundations of Constructive Analysis}, 1967.
+\bibitem{Nordstrom90} Bengt Nordström, Kent Petersson, and Jan M. Smith, \textit{Programming in Martin-Löf’s Type Theory}, Oxford University Press, 1990.
+\bibitem{Sozeau} Matthieu Sozeau and Nicolas Tabareau, \textit{Internalizing Intensional Type Theory}, unpublished.
+\bibitem{Hofmann94} Martin Hofmann and Thomas Streicher, \textit{The Groupoid Model Refutes Uniqueness of Identity Proofs}, in \textit{Logic in Computer Science (LICS'94)}, IEEE, pp. 208–212, 1994.
+\bibitem{Jacobs99} Bart Jacobs, \textit{Categorical Logic and Type Theory}, vol. 141, 1999.
+\bibitem{Mortberg17} Anders Mörtberg et al., \textit{Cubical Type Theory: A Constructive Interpretation of the Univalence Axiom}, arXiv:1611.02108, 2017.
+\bibitem{Huber16} Simon Huber, \textit{Cubical Interpretations of Type Theory}, Ph.D. thesis, Dept. of Computer Science and Engineering, University of Gothenburg, 2016.
+\bibitem{Tonpa18} Maksym Sokhatskyi and Pavlo Maslianko, \textit{The Systems Engineering of Consistent Pure Language with Effect Type System for Certified Applications and Higher Languages}, in \textit{Proc. 4th Int. Conf. Mathematical Models and Computational Techniques in Science and Engineering}, 2018. \texttt{doi:10.1063/1.5045439}
+
+\end{thebibliography}
+
+\end{document}
+

@@ -1,0 +1,3 @@
+(ocamllex lexer)
+(menhir (modules parser))
+(executable (name per) (package per) (public_name per) (libraries zarith))

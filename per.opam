@@ -1,0 +1,19 @@
+opam-version: "2.0"
+name: "per"
+version: "0.5.0"
+maintainer: "Namdak Tonpa <maxim@synrc.com>"
+authors: [ "Groupoid Infinity" ]
+homepage: "https://per.groupoid.space/"
+bug-reports: "https://github.com/groupoid/per/issues"
+dev-repo: "https://github.com/groupoid/per"
+synopsis: "Martin-Löf Type Theory"
+license: "ISC"
+depends: [
+  "dune" {>= "2.9"}
+  "zarith" {>= "1.12"}
+  "ocaml" {>= "4.14"}
+  "menhir" {>= "20220210"}
+]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]
