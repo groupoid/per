@@ -1,6 +1,6 @@
-open Prettyprinter
+open Printer
 open Ident
-open Expr
+open Exp
 
 exception Restart
 exception IncompatibleFaces

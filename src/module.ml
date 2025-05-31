@@ -1,8 +1,8 @@
-open Prettyprinter
+open Printer
 open Prelude
 open Ident
 open Elab
-open Expr
+open Exp
 
 type command =
   | Nope

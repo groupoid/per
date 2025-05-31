@@ -1,6 +1,6 @@
 open Ident
 open Error
-open Expr
+open Exp
 open Rbv
 
 let extPiG : value -> value * clos = function
@@ -94,3 +94,22 @@ and saltTele ctor ns p a b =
   let x = fresh p in ctor x (salt ns a) (salt (Env.add p x ns) b)
 
 let freshExp = salt Env.empty
+
+let getVar x =
+    let xs = [(!intervalPrim, EI);
+              (!zeroPrim, EDir Zero);
+              (!onePrim, EDir One);
+              ("𝟎", EEmpty);     ("empty", EEmpty);
+              ("𝟏", EUnit);      ("unit", EUnit);
+              ("𝟐", EBool);      ("bool", EBool);
+              ("★", EStar);      ("star", EStar);
+              ("false", EFalse); ("0₂", EFalse);
+              ("true", ETrue);   ("1₂", ETrue)] in
+    match List.assoc_opt x xs with Some e -> e | None -> decl x
+
+  let rec telescope ctor e : tele list -> exp = function
+    | []           -> e
+    | (p, a) :: xs -> ctor p a (telescope ctor e xs)
+
+  let rec pLam e : ident list -> exp = function [] -> e | x :: xs -> EPLam (ELam (EI, (x, pLam e xs)))
+

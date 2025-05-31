@@ -1,8 +1,9 @@
-open Prettyprinter
+open Printer
 open Error
 open Ident
-open Expr
+open Exp
 open Rbv
+open Elab
 
 (* Arbitrary formula φ after calling andFormula/orFormula/negFormula
    will have form (α₁ ∧ ... ∧ αₙ) ∨ ... ∨ (β₁ ∧ ... ∧ βₘ),
@@ -137,3 +138,24 @@ let rec solve k x = match k, x with
   | VOr (f, g), One  | VAnd (f, g), Zero -> union (solve f x) (solve g x)
   | VOr (f, g), Zero | VAnd (f, g), One  -> meets (solve f x) (solve g x)
   | _, _ -> failwith (Printf.sprintf "Cannot solve: %s = %s" (showExp (rbV k)) (showDir x))
+
+  type formula =
+    | Falsehood
+    | Equation of ident * dir
+    | Truth
+
+  let extEquation : formula -> ident * dir = function
+    | Equation (x, d) -> (x, d)
+    | _               -> raise (Failure "extEquation")
+
+  let face p e d : formula = match getVar p, e, getDir d with
+    | EVar x,  "=", d  -> Equation (x, d)
+    | EDir d1, "=", d2 -> if d1 = d2 then Truth else Falsehood
+    | _,       _,   _  -> failwith "invalid face"
+
+  let parseFace xs =
+    if List.mem Falsehood xs then None
+    else if List.mem Truth xs then Some eps
+    else Some (Env.of_seq (Seq.map extEquation (List.to_seq xs)))
+
+  let parsePartial (xs, e) = Option.map (fun ys -> (ys, e)) (parseFace xs)

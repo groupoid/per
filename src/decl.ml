@@ -2,7 +2,7 @@ open Module
 open Check
 open Error
 open Ident
-open Expr
+open Exp
 open Elab
 
 let ext x = x ^ ".per"

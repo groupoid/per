@@ -1,47 +1,7 @@
-%{ open Formula
-   open Module
-   open Ident
+%{ open Module
+   open Formula
    open Elab
-   open Expr
-
-  let getVar x =
-    let xs = [(!intervalPrim, EI);
-              (!zeroPrim, EDir Zero);
-              (!onePrim, EDir One);
-              ("𝟎", EEmpty);     ("empty", EEmpty);
-              ("𝟏", EUnit);      ("unit", EUnit);
-              ("𝟐", EBool);      ("bool", EBool);
-              ("★", EStar);      ("star", EStar);
-              ("false", EFalse); ("0₂", EFalse);
-              ("true", ETrue);   ("1₂", ETrue)] in
-    match List.assoc_opt x xs with Some e -> e | None -> decl x
-
-  let rec telescope ctor e : tele list -> exp = function
-    | []           -> e
-    | (p, a) :: xs -> ctor p a (telescope ctor e xs)
-
-  let rec pLam e : ident list -> exp = function [] -> e | x :: xs -> EPLam (ELam (EI, (x, pLam e xs)))
-
-  type formula =
-    | Falsehood
-    | Equation of ident * dir
-    | Truth
-
-  let extEquation : formula -> ident * dir = function
-    | Equation (x, d) -> (x, d)
-    | _               -> raise (Failure "extEquation")
-
-  let face p e d : formula = match getVar p, e, getDir d with
-    | EVar x,  "=", d  -> Equation (x, d)
-    | EDir d1, "=", d2 -> if d1 = d2 then Truth else Falsehood
-    | _,       _,   _  -> failwith "invalid face"
-
-  let parseFace xs =
-    if List.mem Falsehood xs then None
-    else if List.mem Truth xs then Some eps
-    else Some (Env.of_seq (Seq.map extEquation (List.to_seq xs)))
-
-  let parsePartial (xs, e) = Option.map (fun ys -> (ys, e)) (parseFace xs)
+   open Exp
 %}
 
 %token <string> IDENT
@@ -134,7 +94,8 @@ exp6:
   | NEGATE exp6 { ENeg $2 }
   | LSQ separated_list(COMMA, part) RSQ { ESystem (System.of_seq (Seq.filter_map parsePartial (List.to_seq $2))) }
   | LPARENS exp1 RPARENS { $2 }
-  | IDENT { getVar $1 }
+  | IDENT { 
+getVar $1 }
 
 declarations:
   | DEF IDENT params COLON exp2 DEFEQ exp2 { Def ($2, Some (telescope ePi $5 $3), telescope eLam $7 $3) }

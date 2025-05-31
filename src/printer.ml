@@ -1,5 +1,5 @@
 open Ident
-open Expr
+open Exp
 open Prefs
 open Prelude
 

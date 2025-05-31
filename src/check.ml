@@ -1,11 +1,11 @@
-open Prettyprinter
+open Printer
 open Formula
 open Prelude
 open Error
 open Trace
 open Elab
 open Ident
-open Expr
+open Exp
 
 let freshDim () = let i = freshName "ι" in (i, EVar i, Var (i, VI))
 

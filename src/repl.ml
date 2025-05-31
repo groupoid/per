@@ -1,9 +1,9 @@
-open Prettyprinter
+open Printer
 open Module
 open Error
 open Decl
 open Elab
-open Expr
+open Exp
 open Rbv
 
 let help =
