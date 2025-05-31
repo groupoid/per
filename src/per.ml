@@ -36,6 +36,7 @@ let cmd : cmdline -> unit = function
   | Indices -> Prefs.indices := true
   | Trace -> Prefs.indices := true; Prefs.trace := true
   | Girard -> Prefs.girard := true
+  | Irrelevance  -> Prefs.irrelevance := true
 
 let rec parseArgs : string list -> cmdline list = function
   | [] -> []
@@ -46,6 +47,7 @@ let rec parseArgs : string list -> cmdline list = function
   | "help"      :: rest             -> Help    :: parseArgs rest
   | "trace"     :: rest             -> Trace   :: parseArgs rest
   | "indices"   :: rest             -> Indices :: parseArgs rest
+  | "irrelevance" :: rest           -> Irrelevance :: parseArgs rest
   | "silent"    :: rest             -> Silent  :: parseArgs rest
   | "girard"    :: rest             -> Girard  :: parseArgs rest
   | "repl"      :: rest             -> Repl    :: parseArgs rest

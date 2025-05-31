@@ -41,6 +41,7 @@ let rec checkLine st : line -> state =
     end; (checkDecl ctx (freshDecl d), checked)
   | Option (opt, value) ->
     begin match opt with
+      | "irrelevance" -> Prefs.irrelevance := getBoolVal opt value
       | "girard"   -> Prefs.girard  := getBoolVal opt value
       | "verbose"  -> Prefs.verbose := getBoolVal opt value
       | "pre-eval" -> Prefs.preeval := getBoolVal opt value

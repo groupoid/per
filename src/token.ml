@@ -24,3 +24,7 @@ let tokenToString : token -> string = function
   | INC        -> "INC"         | OUC        -> "OUC"
   | HCOMP      -> "HCOMP"       | DOT        -> "DOT"
   | IDJ        -> "IDJ"
+  | W          -> "W"           | SUP        -> "SUP"
+  | INDEMPTY   -> "INDEMPTY"    | INDUNIT    -> "INDUNIT"
+  | INDBOOL    -> "INDBOOL"     | INDW       -> "W"
+

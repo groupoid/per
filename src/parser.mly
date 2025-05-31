@@ -47,6 +47,7 @@
 %token <string> IDENT
 %token <Z.t> KAN
 %token <Z.t> PRE
+%token <string> EXT
 %token LPARENS RPARENS LSQ RSQ
 %token COMMA COLON IRREF EOF HOLE
 %token DEFEQ PROD ARROW DOT LAM
@@ -56,6 +57,8 @@
 %token PARTIAL PARTIALP MAP INC OUC
 %token AND OR NEGATE
 %token ID REF IDJ
+%token INDEMPTY INDUNIT INDBOOL
+%token W INDW SUP
 
 %left APPFORMULA
 %left OR
@@ -88,6 +91,7 @@ exp2:
   | LAM telescope COMMA exp2 { telescope eLam $4 $2 }
   | PI telescope COMMA exp2 { telescope ePi $4 $2 }
   | SIGMA telescope COMMA exp2 { telescope eSig $4 $2 }
+  | W telescope COMMA exp2 { telescope eW $4 $2 }
   | LT vars GT exp2 { pLam $4 $2 }
   | exp3 { $1 }
 
@@ -111,6 +115,11 @@ exp4 :
   | HCOMP exp6 exp6 exp6 exp6 { EHComp ($2, $3, $4, $5) }
   | PARTIAL exp6 { EPartial $2 }
   | PARTIALP exp6 exp6 { EPartialP ($2, $3) }
+  | INDEMPTY exp6 { EIndEmpty $2 }
+  | INDUNIT exp6 { EIndUnit $2 }
+  | INDBOOL exp6 { EIndBool $2 }
+  | SUP exp6 exp6 { ESup ($2, $3) }
+  | INDW exp6 exp6 exp6 { EIndW ($2, $3, $4) }
   | exp5 { $1 }
 
 exp5:
