@@ -1,0 +1,22 @@
+-- W-defined Nat addition for Frank
+-- Test for 2 + 1
+
+module Test.W where
+
+import Prelude
+
+data W A B = Sup (x:A) (f:B x -> W A B)
+
+zero_w = Sup False (\e -> case e of)
+succ_w n = Sup True (\u -> n)
+
+wTwo = succ_w (succ_w zero_w)
+wOne = succ_w zero_w
+
+wplus m n = case m of
+    Sup b f -> case b of
+        False -> n
+        True  -> succ_w (wplus (f tt) n)
+
+-- Test case: 2 + 1
+test_W = wplus wTwo wOne

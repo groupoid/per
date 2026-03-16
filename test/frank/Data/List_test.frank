@@ -1,0 +1,23 @@
+module Data.List_test where
+
+import Data.List
+import Data.Nat
+import Data.Bool
+
+test_length = length (Cons Zero (Cons Zero Nil))
+-- Result should be Succ (Succ Zero)
+
+test_map = map (\n -> Succ n) (Cons Zero (Cons Zero Nil))
+-- Result should be Cons (Succ Zero) (Cons (Succ Zero) Nil)
+
+test_filter = filter isZero (Cons Zero (Cons (Succ Zero) Nil))
+-- Result should be Cons Zero Nil
+
+test_append = append (Cons Zero Nil) (Cons (Succ Zero) Nil)
+-- Result should be Cons Zero (Cons (Succ Zero) Nil)
+
+test_reverse = reverse (Cons Zero (Cons (Succ Zero) Nil))
+-- Result should be Cons (Succ Zero) (Cons Zero Nil)
+
+test_zipWith = zipWith plus (Cons (Succ Zero) Nil) (Cons (Succ Zero) Nil)
+-- Result should be Cons (Succ (Succ Zero)) Nil

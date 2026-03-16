@@ -1,0 +1,28 @@
+-- Test cases for Data.List functionality
+
+module Test.List where
+
+import Data.List
+import Data.Bool
+import Data.Nat
+
+l1 = Cons (Succ Zero) (Cons (Succ (Succ Zero)) Nil)
+l2 = Cons (Succ (Succ (Succ Zero))) Nil
+
+-- Should be Cons (Succ Zero) (Cons (Succ (Succ Zero)) (Cons (Succ (Succ (Succ Zero))) Nil))
+test_append = append l1 l2
+
+-- Should be Cons (Succ (Succ Zero)) (Cons (Succ Zero) Nil)
+test_reverse = reverse l1
+
+-- Should be Cons (Succ (Succ Zero)) (Cons (Succ (Succ (Succ Zero))) Nil)
+test_map = map (\x -> Succ x) l1
+
+-- Should be Succ (Succ (Succ Zero))
+test_foldr = foldr plus Zero l1
+
+-- Should be Cons (Succ (Succ (Succ Zero))) Nil
+test_filter = filter (\x -> case x of Zero -> False; Succ y -> case y of Zero -> False; Succ z -> True) l1
+
+-- Should be Cons (Succ (Succ (Succ (Succ Zero)))) Nil
+test_zipWith = zipWith plus l1 l2
