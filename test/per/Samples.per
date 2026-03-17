@@ -1,6 +1,6 @@
--- Per Samples in Pure MLTT Syntax
+module Samples where
 
-def A : U₀ := 𝟐
+def A : U := 𝟐
 def B (b : 𝟐) : U₀ := ind₂ (λ (_ : 𝟐), U₀) 𝟎 𝟏 b
 def Nat : U₀ := W (b : A), B b
 

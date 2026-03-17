@@ -12,30 +12,32 @@ defmodule Mix.Tasks.Per.Repl do
     env = %Typechecker.Env{}
 
     # Auto-load all modules from priv/per and test/per
+    # and also Prelude if possible
+    env =
+      case Per.Compiler.load_module_to_env("Prelude", env) do
+        {:ok, new_env} -> new_env
+        _ -> env
+      end
+
     paths = Path.wildcard("{priv,test}/per/**/*.per")
 
     env =
       Enum.reduce(paths, env, fn path, acc_env ->
-        # Extract module name from path (e.g., priv/per/Data/Nat.per -> Data.Nat)
         parts = Path.split(path)
-
-        # Drop until we find 'per'
         mod_parts =
           parts
           |> Enum.drop_while(&(&1 != "per"))
           |> Enum.drop(1)
-          # Drop extension
           |> List.update_at(-1, &Path.rootname/1)
 
         mod_name = Enum.join(mod_parts, ".")
 
-        case load_module(mod_name, acc_env) do
+        case Per.Compiler.load_module_to_env(mod_name, acc_env) do
           {:ok, new_env} ->
             IO.puts("Loaded: #{mod_name}")
             new_env
 
-          {:error, err} ->
-            IO.puts("Error loading #{mod_name}: #{inspect(err)}")
+          {:error, _err} ->
             acc_env
         end
       end)
@@ -59,7 +61,7 @@ defmodule Mix.Tasks.Per.Repl do
       "import " <> rest ->
         mod_name = String.trim(rest)
 
-        case load_module(mod_name, env) do
+        case Per.Compiler.load_module_to_env(mod_name, env) do
           {:ok, new_env} ->
             loop(new_env)
 
@@ -81,40 +83,6 @@ defmodule Mix.Tasks.Per.Repl do
     end
   end
 
-  defp load_module(mod_name, env) do
-    # Try to find the file in priv/per or test/per
-    path1 = "priv/per/" <> String.replace(mod_name, ".", "/") <> ".per"
-    path2 = "test/per/" <> String.replace(mod_name, ".", "/") <> ".per"
-
-    path = if File.exists?(path1), do: path1, else: path2
-
-    if File.exists?(path) do
-      source = File.read!(path)
-
-      with {:ok, tokens} <- Lexer.lex(source),
-           resolved <- Layout.resolve(tokens),
-           {:ok, %AST.Module{} = mod, _} <- Parser.parse(resolved) do
-        # Add declarations to env.defs and env.env
-        {new_defs, new_types} =
-          Enum.reduce(mod.declarations, {env.defs, env.env}, fn
-            %AST.DeclValue{} = v, {d_acc, t_acc} ->
-              current_env = %{env | defs: d_acc, env: t_acc}
-              desugared_v = Desugar.desugar_decl(v, current_env)
-              IO.puts("  Defining: #{desugared_v.name}")
-              {Map.put(d_acc, desugared_v.name, desugared_v.expr), t_acc}
-
-            _, acc ->
-              acc
-          end)
-
-        {:ok, %{env | defs: new_defs, env: new_types}}
-      else
-        err -> {:error, err}
-      end
-    else
-      {:error, :module_not_found}
-    end
-  end
 
   defp eval(input, env) do
     # Trim input

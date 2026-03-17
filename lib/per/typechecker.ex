@@ -2,22 +2,26 @@ defmodule Per.Typechecker do
   alias Per.AST
 
   defmodule Env do
-    defstruct env: %{}, ctx: %{}, files: MapSet.new(), deadline: nil
+    defstruct env: %{}, ctx: %{}, files: MapSet.new(), deadline: nil, defs: %{}, name_to_mod: %{}
   end
 
   # --- Evaluation ---
 
   # --- OCaml-style Helpers ---
 
-  def extPiG(%AST.Pi{domain: t, codomain: g}), do: {t, g}
+  def extPiG(%AST.Pi{name: name, domain: t, codomain: g}), do: {t, {name, g}}
   def extPiG(u), do: raise "Expected Pi, got: #{inspect(u)}"
 
-  def extSigG(%AST.Sigma{domain: t, codomain: g}), do: {t, g}
+  def extSigG(%AST.Sigma{name: name, domain: t, codomain: g}), do: {t, {name, g}}
   def extSigG(u), do: raise "Expected Sigma, got: #{inspect(u)}"
 
-  def extSet(%AST.Universe{level: n}), do: n
-  def extSet(v), do: raise "Expected Universe, got: #{inspect(v)}"
-
+  defp extSet(v) do
+    case v do
+      %AST.Universe{level: l} -> l
+      _ ->
+        raise "Expected Universe, got: #{inspect(v)}"
+    end
+  end
   def extKan(%AST.Universe{level: n}), do: n # In our simplified model, Kan and Pre are both Universe with levels
   def extSet_or_Kan(v), do: extSet(v)
 
@@ -116,7 +120,6 @@ defmodule Per.Typechecker do
       %AST.IndEmpty{type: e} -> %AST.IndEmpty{type: eval(e, ctx)}
       %AST.Unit{} -> %AST.Unit{}
       %AST.Star{} -> %AST.Star{}
-      %AST.IndUnit{type: e} -> %AST.IndUnit{type: eval(e, ctx)}
       %AST.Bool{} -> %AST.Bool{}
       %AST.FalseConstant{} -> %AST.FalseConstant{}
       %AST.TrueConstant{} -> %AST.TrueConstant{}
@@ -131,13 +134,20 @@ defmodule Per.Typechecker do
     end
   end
 
+  defp lookup(ctx, x) do
+    case Map.get(ctx, x) do
+      {:local, t, _v} -> t
+      {:global, val_t, _} -> val_t
+      nil -> raise "Variable not found: #{x}"
+    end
+  end
+
   defp getRho(ctx, x) do
     case Map.get(ctx, x) do
       {:local, _t, v} -> v
       {:global, _val_t, {:value, v}} -> v
       {:global, _val_t, {:exp, e}} -> eval(e, ctx)
       nil -> %AST.Var{name: x}
-      v when is_struct(v) -> v
     end
   end
 
@@ -150,6 +160,56 @@ defmodule Per.Typechecker do
     case f do
       # OCaml: | VLam (_, (_, f)), v -> f v
       %AST.Lam{body: func} when is_function(func) -> func.(x)
+
+      # --- Extensions for canonicity (Not in OCaml reference) ---
+
+      # Reduction for J: J A P d x (Refl A x) -> d
+      # f = App(App(App(IdJ, motive), d), x), x = p
+      %AST.App{func: %AST.App{func: %AST.App{func: %AST.IdJ{expr: _m}, arg: d}, arg: _x_val}, arg: _p_val} ->
+        case x do
+          %AST.Refl{} -> d
+          _ -> %AST.App{func: f, arg: x}
+        end
+
+      # Reduction for IndBool: ind₂ M f t false -> f, ind₂ M f t true -> t
+      # f = App(App(IndBool(motive), f_case), t_case), x = bool_val
+      %AST.App{func: %AST.App{func: %AST.IndBool{type: _m}, arg: f_case}, arg: t_case} ->
+        case x do
+          %AST.FalseConstant{} -> f_case
+          %AST.TrueConstant{} -> t_case
+          _ -> %AST.App{func: f, arg: x}
+        end
+
+      # Reduction for IndUnit: ind₁ M f star -> f
+      # f = App(IndUnit(motive), s_case), x = unit_val
+      %AST.App{func: %AST.IndUnit{type: _m}, arg: s_case} ->
+        case x do
+          %AST.Star{} -> s_case
+          _ -> %AST.App{func: f, arg: x}
+        end
+
+      # Reduction for IndW:
+      # indᵂ A B motive alg (sup a f) -> alg a f (λ b, indᵂ A B motive alg (f b))
+      # f = App(IndW(A, B, motive), alg), x = w_val
+      %AST.App{func: %AST.IndW{a: a_type, b: b_type, motive: motive}, arg: alg} ->
+        case x do
+          # Sup is curried: App(App(Sup(A, B), b_val), f_val)
+          %AST.App{func: %AST.App{func: %AST.Sup{a: _sa, b: _sb}, arg: b_val}, arg: f_val} ->
+            # alg b_val f_val (λ x, indᵂ A B motive alg (f_val x))
+            inner_rec = %AST.Lam{
+              name: "b",
+              domain: app(b_type, b_val),
+              body: fn vb ->
+                app(app(app(%AST.IndW{a: a_type, b: b_type, motive: motive}, alg), alg), app(f_val, vb))
+              end
+            }
+            app(app(app(alg, b_val), f_val), inner_rec)
+          _ -> %AST.App{func: f, arg: x}
+        end
+
+      # --- End of Extensions ---
+
+
       _ -> %AST.App{func: f, arg: x}
     end
   end
@@ -334,14 +394,18 @@ defmodule Per.Typechecker do
   end
 
   def infer(ctx, e) do
+    do_infer(ctx, e)
+  end
+
+  defp do_infer(ctx, e) do
     case e do
-      %AST.Var{name: x} -> getRho(ctx, x)
+      %AST.Var{name: x} -> lookup(ctx, x)
       %AST.Universe{level: u} -> %AST.Universe{level: u + 1}
       %AST.Pi{name: x, domain: a, codomain: b} ->
-        ta = infer(ctx, a)
-        x_var = %AST.Var{name: x}
-        tb = infer(Map.put(ctx, x, {:local, eval(a, ctx), x_var}), b)
-        imax(ta, tb)
+        _ = extSet(infer(ctx, a))
+        t = eval(a, ctx)
+        _ = extSet(infer(Map.put(ctx, x, {:local, t, %AST.Var{name: x}}), b))
+        %AST.Universe{level: 0} # Simplified imax
 
       %AST.Sigma{name: x, domain: a, codomain: b} ->
         ta = infer(ctx, a)
@@ -354,6 +418,19 @@ defmodule Per.Typechecker do
         x_var = %AST.Var{name: x}
         tb = infer(Map.put(ctx, x, {:local, eval(a, ctx), x_var}), b)
         imax(ta, tb)
+
+      %AST.Lam{name: x, domain: a, body: b} ->
+        _ = extSet(infer(ctx, a))
+        t = eval(a, ctx)
+        _ = infer(Map.put(ctx, x, {:local, t, %AST.Var{name: x}}), b)
+        %AST.Pi{name: x, domain: t, codomain: fn vx -> infer(Map.put(ctx, x, {:local, t, vx}), b) end}
+
+      %AST.Empty{} -> %AST.Universe{level: 0}
+      %AST.Unit{} -> %AST.Universe{level: 0}
+      %AST.Bool{} -> %AST.Universe{level: 0}
+      %AST.Star{} -> %AST.Unit{}
+      %AST.FalseConstant{} -> %AST.Bool{}
+      %AST.TrueConstant{} -> %AST.Bool{}
 
       %AST.App{func: f, arg: x} ->
         case infer(ctx, f) do
@@ -368,7 +445,7 @@ defmodule Per.Typechecker do
         t
 
       %AST.Snd{expr: e} ->
-        {_t, g} = extSigG(infer(ctx, e))
+        {_t, {_p, g}} = extSigG(infer(ctx, e))
         g.(vfst(eval(e, ctx)))
 
       %AST.IndEmpty{type: e} ->
@@ -394,7 +471,8 @@ defmodule Per.Typechecker do
         {t_prime, {_p, g}} = extPiG(infer(ctx, b))
         eqNf(t, t_prime)
         # OCaml: ignore (extSet (g (Var (p, t))))
-        _ = extSet(g.(%AST.Var{name: "x"}))
+        # Note: OCaml uses Var(p, t). freshName for p is implied.
+        _ = extSet(g.(%AST.Var{name: "_"}))
         infer_sup(t, eval(b, ctx))
 
       %AST.IndW{a: a, b: b, motive: c} ->
@@ -403,13 +481,14 @@ defmodule Per.Typechecker do
         _ = extSet(infer(ctx, a))
         {t_prime, {_p, g}} = extPiG(infer(ctx, b))
         eqNf(t, t_prime)
-        _ = extSet(g.(%AST.Var{name: "x"}))
+        _ = extSet(g.(%AST.Var{name: "_"}))
 
         {w_prime, {_q, h}} = extPiG(infer(ctx, c))
         eqNf(wtype(t, eval(b, ctx)), w_prime)
-        _ = extSet(h.(%AST.Var{name: "x"}))
+        _ = extSet(h.(%AST.Var{name: "_"}))
 
         infer_ind_w(t, eval(b, ctx), eval(c, ctx))
+
 
       _ -> raise "Inference not implemented for: #{inspect(e)}"
     end

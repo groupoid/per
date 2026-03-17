@@ -7,7 +7,7 @@ defmodule Per.Lexer do
     lex(String.to_charlist(input), 1, 1, [])
   end
 
-  defp lex([], _line, _col, acc), do: {:ok, Enum.reverse(acc)}
+  defp lex([], _line, _col, acc), do: Enum.reverse(acc)
 
   defp lex([?\n | rest], line, _col, acc), do: lex(rest, line + 1, 1, acc)
   defp lex([?\s | rest], line, col, acc), do: lex(rest, line, col + 1, acc)
@@ -32,18 +32,8 @@ defmodule Per.Lexer do
   defp lex([?1, 0x2082 | rest], line, col, acc), # 1₂
     do: lex(rest, line, col + 2, [{:true_kw, line, col} | acc])
 
-  # UTF-8 Symbols (move to top priority)
   defp lex([?→ | rest], line, col, acc), # →
     do: lex(rest, line, col + 1, [{:arrow, line, col} | acc])
-
-  defp lex([?λ | rest], line, col, acc), # λ
-    do: lex(rest, line, col + 1, [{:backslash, line, col} | acc])
-
-  defp lex([?Π | rest], line, col, acc), # Π
-    do: lex(rest, line, col + 1, [{:pi_token, line, col} | acc])
-
-  defp lex([?Σ | rest], line, col, acc), # Σ
-    do: lex(rest, line, col + 1, [{:sigma_token, line, col} | acc])
 
   defp lex([?∨ | rest], line, col, acc), # ∨
     do: lex(rest, line, col + 1, [{:or_token, line, col} | acc])
@@ -54,10 +44,7 @@ defmodule Per.Lexer do
   defp lex([?× | rest], line, col, acc), # ×
     do: lex(rest, line, col + 1, [{:prod_token, line, col} | acc])
 
-  defp lex([?* | rest], line, col, acc), # *
-    do: lex(rest, line, col + 1, [{:prod_token, line, col} | acc])
-
-  # Numbers
+  # Brackets and delimiters
   defp lex([?( | rest], line, col, acc),
     do: lex(rest, line, col + 1, [{:left_paren, line, col} | acc])
 
@@ -69,6 +56,9 @@ defmodule Per.Lexer do
 
   defp lex([?] | rest], line, col, acc),
     do: lex(rest, line, col + 1, [{:right_square, line, col} | acc])
+
+  defp lex([?< | rest], line, col, acc), do: lex(rest, line, col + 1, [{:left_angle, line, col} | acc])
+  defp lex([?> | rest], line, col, acc), do: lex(rest, line, col + 1, [{:right_angle, line, col} | acc])
 
   defp lex([?{ | rest], line, col, acc),
     do: lex(rest, line, col + 1, [{:left_brace, line, col} | acc])
@@ -95,17 +85,10 @@ defmodule Per.Lexer do
   defp lex([?\\ | rest], line, col, acc),
     do: lex(rest, line, col + 1, [{:backslash, line, col} | acc])
 
-  # Numbers
-  defp lex([c | rest], line, col, acc) when c >= ?0 and c <= ?9 do
-    {num_chars, rest2} = take_while([c | rest], fn x -> x >= ?0 and x <= ?9 end)
-    num = List.to_integer(num_chars)
-    lex(rest2, line, col + length(num_chars), [{:number, line, col, num} | acc])
-  end
-
   # Identifiers and Keywords
   defp lex([c | rest], line, col, acc)
-       when (c >= ?a and c <= ?z) or (c >= ?A and c <= ?Z) or c == ?_ or 
-            (c > 127 and c not in [?λ, ?Π, ?Σ, ?→, ?∧, ?∨]) do
+       when (c >= ?a and c <= ?z) or (c >= ?A and c <= ?Z) or c == ?_ or
+            (c > 127 and c not in [?→, ?∧, ?∨, ?×]) do
     {ident_chars, rest2} = take_ident([c | rest])
     ident = List.to_string(ident_chars)
 
@@ -135,6 +118,14 @@ defmodule Per.Lexer do
       "PartialP" -> lex(rest2, line, col + String.length(ident), [{:partialp, line, col} | acc])
       "inc" -> lex(rest2, line, col + String.length(ident), [{:inc, line, col} | acc])
       "ouc" -> lex(rest2, line, col + String.length(ident), [{:ouc, line, col} | acc])
+      "summa" -> lex(rest2, line, col + String.length(ident), [{:sigma_token, line, col} | acc])
+      "Σ" -> lex(rest2, line, col + String.length(ident), [{:sigma_token, line, col} | acc])
+      "Π" -> lex(rest2, line, col + String.length(ident), [{:pi_token, line, col} | acc])
+      "λ" -> lex(rest2, line, col + String.length(ident), [{:backslash, line, col} | acc])
+      "𝟎" -> lex(rest2, line, col + String.length(ident), [{:empty_type, line, col} | acc])
+      "𝟏" -> lex(rest2, line, col + String.length(ident), [{:unit_type, line, col} | acc])
+      "𝟐" -> lex(rest2, line, col + String.length(ident), [{:bool_type, line, col} | acc])
+      "★" -> lex(rest2, line, col + String.length(ident), [{:star_kw, line, col} | acc])
       "sup" -> lex(rest2, line, col + String.length(ident), [{:sup, line, col} | acc])
       "W" -> lex(rest2, line, col + String.length(ident), [{:w_type, line, col} | acc])
       "Id" -> lex(rest2, line, col + String.length(ident), [{:id_type, line, col} | acc])
@@ -144,39 +135,45 @@ defmodule Per.Lexer do
       "ind-unit" -> lex(rest2, line, col + String.length(ident), [{:ind_unit, line, col} | acc])
       "ind-bool" -> lex(rest2, line, col + String.length(ident), [{:ind_bool, line, col} | acc])
       "ind-W" -> lex(rest2, line, col + String.length(ident), [{:ind_w, line, col} | acc])
-      "𝟎" -> lex(rest2, line, col + String.length(ident), [{:empty_type, line, col} | acc])
-      "𝟏" -> lex(rest2, line, col + String.length(ident), [{:unit_type, line, col} | acc])
-      "𝟐" -> lex(rest2, line, col + String.length(ident), [{:bool_type, line, col} | acc])
       "ind₀" -> lex(rest2, line, col + String.length(ident), [{:ind_empty, line, col} | acc])
       "ind₁" -> lex(rest2, line, col + String.length(ident), [{:ind_unit, line, col} | acc])
       "ind₂" -> lex(rest2, line, col + String.length(ident), [{:ind_bool, line, col} | acc])
       "indᵂ" -> lex(rest2, line, col + String.length(ident), [{:ind_w, line, col} | acc])
       "false" -> lex(rest2, line, col + String.length(ident), [{:false_kw, line, col} | acc])
       "true" -> lex(rest2, line, col + String.length(ident), [{:true_kw, line, col} | acc])
-      "0₂" -> lex(rest2, line, col + String.length(ident), [{:false_kw, line, col} | acc])
-      "1₂" -> lex(rest2, line, col + String.length(ident), [{:true_kw, line, col} | acc])
       "star" -> lex(rest2, line, col + String.length(ident), [{:star_kw, line, col} | acc])
-      "★" -> lex(rest2, line, col + String.length(ident), [{:star_kw, line, col} | acc])
       "Empty" -> lex(rest2, line, col + String.length(ident), [{:empty_type, line, col} | acc])
       "Unit" -> lex(rest2, line, col + String.length(ident), [{:unit_type, line, col} | acc])
       "Bool" -> lex(rest2, line, col + String.length(ident), [{:bool_type, line, col} | acc])
-      "summa" -> lex(rest2, line, col + String.length(ident), [{:sigma_token, line, col} | acc])
       _ ->
-        if String.starts_with?(ident, "U") and String.length(ident) > 1 and is_subscript?(String.at(ident, 1)) do
-          level = subscript_to_int(String.slice(ident, 1..-1//1))
-          lex(rest2, line, col + String.length(ident), [{:number, line, col, level} | acc])
-        else
-          lex(rest2, line, col + String.length(ident), [{:ident, line, col, ident} | acc])
+        cond do
+          ident == "U" or ident == "V" ->
+            lex(rest2, line, col + String.length(ident), [{:number, line, col, 0} | acc])
+          String.starts_with?(ident, "U") and String.length(ident) > 1 and is_subscript?(String.at(ident, 1)) ->
+            level = subscript_to_int(String.slice(ident, 1..-1//1))
+            lex(rest2, line, col + String.length(ident), [{:number, line, col, level} | acc])
+          String.starts_with?(ident, "V") and String.length(ident) > 1 and is_subscript?(String.at(ident, 1)) ->
+            level = subscript_to_int(String.slice(ident, 1..-1//1))
+            lex(rest2, line, col + String.length(ident), [{:number, line, col, level} | acc])
+          true ->
+            lex(rest2, line, col + String.length(ident), [{:ident, line, col, ident} | acc])
         end
     end
   end
 
+  # Numbers
+  defp lex([c | rest], line, col, acc) when c >= ?0 and c <= ?9 do
+    {num_chars, rest2} = take_while([c | rest], fn x -> x >= ?0 and x <= ?9 end)
+    num = List.to_integer(num_chars)
+    lex(rest2, line, col + length(num_chars), [{:number, line, col, num} | acc])
+  end
+
   # Operators
   defp lex([c | rest], line, col, acc)
-       when c in [?=, ?|, ?:, ?<, ?>, ?+, ?-, ?*, ?/, ?%, ?^, ?&, ?!, ?$, ?#, ?@, ??] do
+       when c in [?=, ?|, ?:, ?+, ?-, ?*, ?/, ?%, ?^, ?&, ?!, ?$, ?#, ?@, ??] do
     {op_chars, rest2} =
       take_while([c | rest], fn x ->
-        x in [?=, ?|, ?:, ?<, ?>, ?+, ?-, ?*, ?/, ?%, ?^, ?&, ?!, ?$, ?#, ?@, ??]
+        x in [?=, ?|, ?:, ?+, ?-, ?*, ?/, ?%, ?^, ?&, ?!, ?$, ?#, ?@, ??]
       end)
 
     op = List.to_string(op_chars)
@@ -216,14 +213,14 @@ defmodule Per.Lexer do
   end
 
   defp take_ident([c | rest]) do
-    take_while([c | rest], fn x ->
-      (x >= ?a and x <= ?z) or (x >= ?A and x <= ?Z) or (x >= ?0 and x <= ?9) or 
-      x == ?_ or x == ?' or x == ?- or 
-      (x > 127 and x not in [?λ, ?Π, ?Σ, ?→, ?∧, ?∨])
-    end)
+    {ident_chars, rest2} =
+      take_while(rest, fn x ->
+        (x >= ?a and x <= ?z) or (x >= ?A and x <= ?Z) or (x >= ?0 and x <= ?9) or 
+        x == ?_ or x == ?' or x == ?- or 
+        (x > 127 and x not in [?→, ?∧, ?∨, ?×])
+      end)
+    {[c | ident_chars], rest2}
   end
-
-  defp take_ident(rest), do: {[], rest}
 
   defp take_while([], _), do: {[], []}
 

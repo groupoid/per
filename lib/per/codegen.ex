@@ -10,8 +10,9 @@ defmodule Per.Codegen do
 
     module_attr = {:attribute, 1, :module, current_mod}
     export_all = {:attribute, 1, :compile, :export_all}
+    no_warn = {:attribute, 1, :compile, :nowarn_unused_vars}
 
-    forms = [module_attr, export_all] ++ functions ++ [{:eof, 1}]
+    forms = [module_attr, export_all, no_warn] ++ functions ++ [{:eof, 1}]
     {:ok, forms}
   end
 
@@ -38,9 +39,16 @@ defmodule Per.Codegen do
   defp generate_decl(_, _, _), do: []
 
   defp generate_expr(%AST.Var{name: name}, local_env, env, current_mod) do
-    # Map to Erlang variable (Capitalized) or atom if it's a global
     if MapSet.member?(local_env, name) do
-      {:var, 1, String.capitalize(name) |> String.to_atom()}
+      # Sanitize variable name: must start with Uppercase ASCII
+      # If first char is Unicode, prefix with 'X'
+      sanitized = 
+        if String.match?(String.at(name, 0), ~r/[a-zA-Z_]/) do
+          String.capitalize(name)
+        else
+          "V_" <> (Integer.to_string(String.to_charlist(name) |> hd(), 16))
+        end
+      {:var, 1, String.to_atom(sanitized)}
     else
       # Global call: check if it's local or remote
       case Map.get(env.name_to_mod, name) do

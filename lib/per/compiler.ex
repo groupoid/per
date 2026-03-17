@@ -5,8 +5,8 @@ defmodule Per.Compiler do
   alias Per.{Lexer, Layout, Parser, Desugar, Codegen, AST}
 
   def compile_module(source, opts \\ []) do
-    with {:ok, tokens} <- Lexer.lex(source),
-         resolved <- Layout.resolve(tokens),
+    tokens = Lexer.lex(source)
+    with resolved <- Layout.resolve(tokens),
          {:ok, ast, _rest} <- Parser.parse(resolved) do
       env = resolve_imports(ast, %Per.Typechecker.Env{}, opts)
       env = collect_local_names(ast, env)
@@ -40,9 +40,13 @@ defmodule Per.Compiler do
 
   defp populate_local_env(%AST.Module{name: _mod_name, declarations: decls}, env) do
     Enum.reduce(decls, env, fn
-      %AST.DeclValue{name: n, expr: e}, acc ->
-        ty = Per.Typechecker.infer(acc, e)
-        %{acc | defs: Map.put(acc.defs, n, e), ctx: [{n, ty} | acc.ctx]}
+      %AST.DeclValue{name: name, type: ty, expr: expr}, acc ->
+        eval_ty = Per.Typechecker.eval(ty, acc.ctx)
+        eval_val = Per.Typechecker.eval(expr, acc.ctx)
+        %{acc |
+          defs: Map.put(acc.defs, name, eval_val),
+          ctx: Map.put(acc.ctx, name, {:global, eval_ty, {:value, eval_val}})
+        }
 
       _, acc ->
         acc
@@ -118,7 +122,7 @@ defmodule Per.Compiler do
 
                   {Map.put(d_acc, desugared_v.name, desugared_v.expr), t_acc,
                    Map.put(n_acc, desugared_v.name, mod_name),
-                   [{desugared_v.name, val_ty} | c_acc]}
+                   Map.put(c_acc, desugared_v.name, {:global, val_ty, {:value, desugared_v.expr}})}
 
                 _, acc ->
                   acc

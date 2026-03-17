@@ -1,9 +1,13 @@
 defmodule Per.Parser do
   alias Per.AST
 
-  def parse(tokens) do
+  def parse(tokens) when is_list(tokens) do
+    # Strip explicit newlines and virtual semicolons, Layout has already handled block structure
+    tokens = Enum.filter(tokens, fn t -> elem(t, 0) not in [:newline, :v_semicolon] end)
     parse_module(tokens)
   end
+
+  def parse({:error, _} = err), do: err
 
   def parse_expression(tokens) do
     parse_expr(tokens)
@@ -152,15 +156,28 @@ defmodule Per.Parser do
 
   defp parse_params(tokens, acc) do
     case tokens do
-      [{:ident, _, _, name} | rest] -> 
-        parse_params(rest, [%AST.Var{name: name} | acc])
-      [{:left_paren, _, _}, {:ident, _, _, name}, {:colon, _, _} | rest] ->
-        case parse_type(rest) do
-          {:ok, ty, [{:right_paren, _, _} | rest2]} ->
-            parse_params(rest2, [{name, ty} | acc])
-          _ -> {:error, :invalid_param}
+      [{:left_paren, _, _} | _] ->
+        case parse_lense(tokens) do
+          {:ok, params, rest} -> parse_params(rest, acc ++ params)
+          _ -> {:ok, acc, tokens}
         end
-      _ -> {:ok, Enum.reverse(acc), tokens}
+      _ -> {:ok, acc, tokens}
+    end
+  end
+
+  defp parse_lense([{:left_paren, _, _} | rest]) do
+    case parse_vars(rest) do
+      {:ok, vars, [{:colon, _, _} | rest2]} ->
+        case parse_type(rest2) do
+          {:ok, ty, [{:right_paren, _, _} | rest3]} ->
+            {:ok, Enum.map(vars, fn v -> {v, ty} end), rest3}
+          _ -> {:error, :invalid_lense_type}
+        end
+      {:ok, _vars, [{:right_paren, _, _} | _rest2]} ->
+        # Type-less parameters (if allowed by Per, but OCaml requires colon)
+        # Assuming OCaml's lense: LPARENS vars COLON exp2 RPARENS
+        {:error, :expected_colon_in_lense}
+      _ -> {:error, :invalid_lense}
     end
   end
 
