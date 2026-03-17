@@ -87,8 +87,8 @@ defmodule Per.Lexer do
 
   # Identifiers and Keywords
   defp lex([c | rest], line, col, acc)
-       when (c >= ?a and c <= ?z) or (c >= ?A and c <= ?Z) or c == ?_ or
-            (c > 127 and c not in [?→, ?∧, ?∨, ?×]) do
+       when (c >= ?a and c <= ?z) or (c >= ?A and c <= ?Z) or (c >= ?0 and c <= ?9) or
+            c == ?_ or (c > 127 and c not in [?→, ?∧, ?∨, ?×]) do
     {ident_chars, rest2} = take_ident([c | rest])
     ident = List.to_string(ident_chars)
 
@@ -156,16 +156,13 @@ defmodule Per.Lexer do
             level = subscript_to_int(String.slice(ident, 1..-1//1))
             lex(rest2, line, col + String.length(ident), [{:number, line, col, level} | acc])
           true ->
-            lex(rest2, line, col + String.length(ident), [{:ident, line, col, ident} | acc])
+            if String.match?(ident, ~r/^\d+$/) do
+              lex(rest2, line, col + String.length(ident), [{:number, line, col, String.to_integer(ident)} | acc])
+            else
+              lex(rest2, line, col + String.length(ident), [{:ident, line, col, ident} | acc])
+            end
         end
     end
-  end
-
-  # Numbers
-  defp lex([c | rest], line, col, acc) when c >= ?0 and c <= ?9 do
-    {num_chars, rest2} = take_while([c | rest], fn x -> x >= ?0 and x <= ?9 end)
-    num = List.to_integer(num_chars)
-    lex(rest2, line, col + length(num_chars), [{:number, line, col, num} | acc])
   end
 
   # Operators
