@@ -16,7 +16,7 @@ defmodule Mix.Tasks.Per.Base do
     base_files = [
       "priv/foundations/mltt.per",
       "priv/foundations/inductive.per",
-      "priv/foundations/either.per"
+      "priv/foundations/univalent.per"
     ]
 
     out_dir = "ebin"

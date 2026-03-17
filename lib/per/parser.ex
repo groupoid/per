@@ -108,7 +108,7 @@ defmodule Per.Parser do
     end
   end
 
-  defp parse_val_decl([{:ident, _, _, name} | rest]) do
+  defp parse_val_decl([{:ident, _, _, name} | rest] = tokens) do
     case parse_params(rest, []) do
       {:ok, params, [{:colon, _, _} | rest2]} ->
         case parse_type(rest2) do
@@ -130,7 +130,7 @@ defmodule Per.Parser do
             {:ok, %AST.DeclValue{name: name, type: %AST.Hole{}, expr: full_expr}, rest3}
           err -> err
         end
-      _ -> {:error, :invalid_val_decl}
+      _ -> {:error, :invalid_val_decl, tokens}
     end
   end
 
