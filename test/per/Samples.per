@@ -1,0 +1,22 @@
+-- Per Samples in Pure MLTT Syntax
+
+def A : U₀ := 𝟐
+def B (b : 𝟐) : U₀ := ind₂ (λ (_ : 𝟐), U₀) 𝟎 𝟏 b
+def Nat : U₀ := W (b : A), B b
+
+def zero : Nat := sup A B 0₂ (λ (e : 𝟎), ind₀ Nat e)
+def succ (n : Nat) : Nat := sup A B 1₂ (λ (u : 𝟏), n)
+
+def plus (m n : Nat) : Nat :=
+  indᵂ A B (λ (_ : Nat), Nat)
+    (λ (b : 𝟐) (f : (B b) → Nat) (rec : (B b) → Nat),
+      ind₂ (λ (b : 𝟐), (B b → Nat) → (B b → Nat) → Nat)
+        (λ (f1 : 𝟎 → Nat) (rec1 : 𝟎 → Nat), n)
+        (λ (f2 : 𝟏 → Nat) (rec2 : 𝟏 → Nat), succ (rec2 ★))
+        b f rec)
+    m
+
+-- W-types (Internalized)
+def WNat : 0 := Nat
+def zero_w : WNat := zero
+def succ_w (n : WNat) : WNat := succ n

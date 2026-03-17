@@ -34,7 +34,7 @@ defmodule Per.Compiler do
         end
       end
     else
-      {:error, _} = err -> err
+      err -> err
     end
   end
 
@@ -43,11 +43,6 @@ defmodule Per.Compiler do
       %AST.DeclValue{name: n, expr: e}, acc ->
         ty = Per.Typechecker.infer(acc, e)
         %{acc | defs: Map.put(acc.defs, n, e), ctx: [{n, ty} | acc.ctx]}
-
-      %AST.Inductive{} = ind, acc ->
-        acc = %{acc | env: Map.put(acc.env, ind.name, ind)}
-        acc = %{acc | defs: add_constructors(ind, acc.defs)}
-        %{acc | ctx: add_constructors_to_ctx(ind, acc.ctx)}
 
       _, acc ->
         acc
@@ -59,10 +54,6 @@ defmodule Per.Compiler do
       Enum.reduce(decls, env.name_to_mod, fn
         %AST.DeclValue{name: n}, acc ->
           Map.put(acc, n, mod_name)
-
-        %AST.Inductive{name: n, constrs: cs}, acc ->
-          acc = Map.put(acc, n, mod_name)
-          Enum.reduce(cs, acc, fn {_, cn, _}, a -> Map.put(a, cn, mod_name) end)
 
         _, acc ->
           acc
@@ -129,29 +120,6 @@ defmodule Per.Compiler do
                    Map.put(n_acc, desugared_v.name, mod_name),
                    [{desugared_v.name, val_ty} | c_acc]}
 
-                %AST.DeclData{} = data, {d_acc, t_acc, n_acc, c_acc} ->
-                  current_env = %{
-                    env_with_imports
-                    | defs: d_acc,
-                      env: t_acc,
-                      name_to_mod: n_acc,
-                      ctx: c_acc
-                  }
-
-                  desugared_ind = Desugar.desugar_decl(data, current_env)
-                  new_t_acc = Map.put(t_acc, desugared_ind.name, desugared_ind)
-                  new_d_acc = add_constructors(desugared_ind, d_acc)
-                  new_c_acc = add_constructors_to_ctx(desugared_ind, c_acc)
-
-                  n_acc2 = Map.put(n_acc, desugared_ind.name, mod_name)
-
-                  n_acc3 =
-                    Enum.reduce(desugared_ind.constrs, n_acc2, fn {_, cn, _}, a ->
-                      Map.put(a, cn, mod_name)
-                    end)
-
-                  {new_d_acc, new_t_acc, n_acc3, new_c_acc}
-
                 _, acc ->
                   acc
               end
@@ -175,39 +143,16 @@ defmodule Per.Compiler do
   end
 
   def find_module_path(mod_name) do
-    # Search in priv/per and test/per
+    # Search in priv/per, test/per, and priv/foundations
     path1 = "priv/per/" <> String.replace(mod_name, ".", "/") <> ".per"
     path2 = "test/per/" <> String.replace(mod_name, ".", "/") <> ".per"
+    path3 = "priv/foundations/" <> String.replace(mod_name, ".", "/") <> ".per"
 
     cond do
       File.exists?(path1) -> {:ok, path1}
       File.exists?(path2) -> {:ok, path2}
+      File.exists?(path3) -> {:ok, path3}
       true -> nil
-    end
-  end
-
-  defp add_constructors(ind, defs) do
-    Enum.reduce(ind.constrs, defs, fn {idx, name, ty}, acc ->
-      term = make_constr_term(idx, ind, ty, [])
-      Map.put(acc, name, term)
-    end)
-  end
-
-  defp add_constructors_to_ctx(ind, ctx) do
-    Enum.reduce(ind.constrs, ctx, fn {_, name, ty}, acc ->
-      [{name, ty} | acc]
-    end)
-  end
-
-  defp make_constr_term(idx, ind, ty, vars) do
-    case ty do
-      %AST.Pi{name: x, domain: a, codomain: b} ->
-        name = if x == "_", do: "a#{length(vars)}", else: x
-        %AST.Lam{name: name, domain: a, body: make_constr_term(idx, ind, b, [name | vars])}
-
-      _ ->
-        args = Enum.reverse(vars) |> Enum.map(fn n -> %AST.Var{name: n} end)
-        %AST.Constr{index: idx, inductive: ind, args: args}
     end
   end
 

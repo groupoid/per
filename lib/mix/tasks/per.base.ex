@@ -1,28 +1,22 @@
-defmodule Mix.Tasks.Frank.Base do
+defmodule Mix.Tasks.Per.Base do
   use Mix.Task
 
-  @shortdoc "Compile Frank standard library"
+  @shortdoc "Compile Per standard library"
   def run(args) do
     {opts, _, _} = OptionParser.parse(args, switches: [check_only: :boolean])
     check_only = Keyword.get(opts, :check_only, false)
 
     if check_only do
-      IO.puts("Typechecking Frank base library...")
+      IO.puts("Typechecking Per base library...")
     else
-      IO.puts("Compiling Frank base library...")
+      IO.puts("Compiling Per base library...")
     end
 
     # Order matters for the base library
     base_files = [
-      "priv/per/Prelude.per",
-      "priv/per/Data/Unit.per",
-      "priv/per/Data/Bool.per",
-      "priv/per/Data/Nat.per",
-      "priv/per/Data/List.per",
-      "priv/per/Data/Tree.per",
-      "priv/per/Data/Fin.per",
-      "priv/per/Data/Vec.per",
-      "priv/per/Data/W.per"
+      "priv/foundations/mltt.per",
+      "priv/foundations/inductive.per",
+      "priv/foundations/either.per"
     ]
 
     out_dir = "ebin"
@@ -34,7 +28,7 @@ defmodule Mix.Tasks.Frank.Base do
         IO.write("  #{action_str} #{file}... ")
         source = File.read!(file)
 
-        case Frank.Compiler.compile_module(source, [source_path: file] ++ opts) do
+        case Per.Compiler.compile_module(source, [source_path: file] ++ opts) do
           {:ok, _mod, :check_only} ->
             IO.puts("OK (Checked)")
 
@@ -50,6 +44,6 @@ defmodule Mix.Tasks.Frank.Base do
     end)
 
     finished_str = if check_only, do: "verification", else: "compilation"
-    IO.puts("\nFrank base library #{finished_str} finished.")
+    IO.puts("\nPer base library #{finished_str} finished.")
   end
 end

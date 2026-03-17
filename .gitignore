@@ -1,0 +1,4 @@
+.elixir_ls/*
+_build/*
+mix.exs.lock
+test_output.txt
