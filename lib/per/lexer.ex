@@ -26,7 +26,13 @@ defmodule Per.Lexer do
     lex(rest2, new_line, new_col, acc)
   end
 
-  # Special symbols
+  defp lex([?0, 0xE2, 0x82, 0x82 | rest], line, col, acc), # 0₂
+    do: lex(rest, line, col + 4, [{:false_kw, line, col} | acc])
+
+  defp lex([?1, 0xE2, 0x82, 0x82 | rest], line, col, acc), # 1₂
+    do: lex(rest, line, col + 4, [{:true_kw, line, col} | acc])
+
+  # Numbers
   defp lex([?( | rest], line, col, acc),
     do: lex(rest, line, col + 1, [{:left_paren, line, col} | acc])
 
@@ -199,7 +205,7 @@ defmodule Per.Lexer do
 
   defp take_ident([c | rest])
        when (c >= ?a and c <= ?z) or (c >= ?A and c <= ?Z) or (c >= ?0 and c <= ?9) or c == ?_ or
-              c == ?' or c > 127 do
+              c == ?' or c == ?- or c > 127 do
     {rest_ident, rest2} = take_ident(rest)
     {[c | rest_ident], rest2}
   end
