@@ -40,7 +40,10 @@ defmodule Per.Parser do
         end
 
       _ ->
-        {:error, {:invalid_module, Enum.take(tokens, 5)}}
+        case parse_decls(tokens, []) do
+          {:ok, decls, remaining} -> {:ok, %AST.Module{name: "main", declarations: decls}, remaining}
+          err -> err
+        end
     end
   end
 
@@ -73,37 +76,34 @@ defmodule Per.Parser do
     end
   end
 
-  defp parse_decl([{:import, _, _} | rest]) do
-    case parse_module_name(rest) do
-      {:ok, name, rest2} -> {:ok, {:import, name}, rest2}
-      _ -> {:error, :invalid_import}
-    end
-  end
-
-  defp parse_decl([{:option_kw, _, _} | rest]) do
-    case rest do
-      [{:ident, _, _, name}, {:true_kw, _, _} | rest2] -> {:ok, {:option, name, true}, rest2}
-      [{:ident, _, _, name}, {:false_kw, _, _} | rest2] -> {:ok, {:option, name, false}, rest2}
-      _ -> {:error, :invalid_option}
-    end
-  end
-
-  defp parse_decl([{:def_kw, _, _} | rest]), do: parse_val_decl(rest)
-  defp parse_decl([{:axiom_kw, _, _} | rest]), do: parse_axiom_decl(rest)
-
-  defp parse_decl([{:ident, _, _, _name} | _rest] = tokens) do
-    # Try as value declaration or type signature
-    case parse_val_decl(tokens) do
-      {:ok, _, _} = res -> res
-      _ ->
-        case parse_type_sig(tokens) do
-          {:ok, _, _} = res -> res
-          _ -> {:error, :unrecognized_decl}
+  defp parse_decl(tokens) do
+    IO.inspect(tokens, label: "PARSE_DECL_TOKENS", limit: :infinity)
+    case tokens do
+      [{:import, _, _} | rest] ->
+        case parse_module_name(rest) do
+          {:ok, name, rest2} -> {:ok, {:import, name}, rest2}
+          _ -> {:error, :invalid_import}
         end
+      [{:option_kw, _, _} | rest] ->
+        case rest do
+          [{:ident, _, _, name}, {:true_kw, _, _} | rest2] -> {:ok, {:option, name, true}, rest2}
+          [{:ident, _, _, name}, {:false_kw, _, _} | rest2] -> {:ok, {:option, name, false}, rest2}
+          _ -> {:error, :invalid_option}
+        end
+      [{:def_kw, _, _} | rest] -> parse_val_decl(rest)
+      [{:axiom_kw, _, _} | rest] -> parse_axiom_decl(rest)
+      [{:ident, _, _, _name} | _rest] ->
+        case parse_val_decl(tokens) do
+          {:ok, _, _} = res -> res
+          _ ->
+            case parse_type_sig(tokens) do
+              {:ok, _, _} = res -> res
+              _ -> {:error, :unrecognized_decl}
+            end
+        end
+      _ -> {:error, :invalid_declaration, Enum.take(tokens, 5)}
     end
   end
-
-  defp parse_decl(tokens), do: {:error, :invalid_declaration, Enum.take(tokens, 5)}
 
   defp parse_val_decl([{:ident, _, _, name} | rest]) do
     case parse_params(rest, []) do
@@ -120,7 +120,7 @@ defmodule Per.Parser do
              end
            _ -> {:error, :expected_defeq}
         end
-      {:ok, params, [{:=, _, _} | rest2]} ->
+      {:ok, params, [divider | rest2]} when elem(divider, 0) in [:defeq, :=] ->
         case parse_expr(rest2) do
           {:ok, expr, rest3} ->
             full_expr = mk_lam_tele(params, expr)
