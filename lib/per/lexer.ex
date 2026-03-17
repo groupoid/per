@@ -26,11 +26,30 @@ defmodule Per.Lexer do
     lex(rest2, new_line, new_col, acc)
   end
 
-  defp lex([?0, 0xE2, 0x82, 0x82 | rest], line, col, acc), # 0₂
-    do: lex(rest, line, col + 4, [{:false_kw, line, col} | acc])
+  defp lex([?0, 0x2082 | rest], line, col, acc), # 0₂
+    do: lex(rest, line, col + 2, [{:false_kw, line, col} | acc])
 
-  defp lex([?1, 0xE2, 0x82, 0x82 | rest], line, col, acc), # 1₂
-    do: lex(rest, line, col + 4, [{:true_kw, line, col} | acc])
+  defp lex([?1, 0x2082 | rest], line, col, acc), # 1₂
+    do: lex(rest, line, col + 2, [{:true_kw, line, col} | acc])
+
+  # UTF-8 Symbols (move to top priority)
+  defp lex([?→ | rest], line, col, acc), # →
+    do: lex(rest, line, col + 1, [{:arrow, line, col} | acc])
+
+  defp lex([?λ | rest], line, col, acc), # λ
+    do: lex(rest, line, col + 1, [{:backslash, line, col} | acc])
+
+  defp lex([?Π | rest], line, col, acc), # Π
+    do: lex(rest, line, col + 1, [{:pi_token, line, col} | acc])
+
+  defp lex([?Σ | rest], line, col, acc), # Σ
+    do: lex(rest, line, col + 1, [{:sigma_token, line, col} | acc])
+
+  defp lex([?∧ | rest], line, col, acc), # ∧
+    do: lex(rest, line, col + 1, [{:and_token, line, col} | acc])
+
+  defp lex([?∨ | rest], line, col, acc), # ∨
+    do: lex(rest, line, col + 1, [{:or_token, line, col} | acc])
 
   # Numbers
   defp lex([?( | rest], line, col, acc),
@@ -66,25 +85,6 @@ defmodule Per.Lexer do
   defp lex([?-, ?> | rest], line, col, acc),
     do: lex(rest, line, col + 2, [{:arrow, line, col} | acc])
 
-  # UTF-8 Symbols
-  defp lex([0xE2, 0x86, 0x92 | rest], line, col, acc), # →
-    do: lex(rest, line, col + 3, [{:arrow, line, col} | acc])
-
-  defp lex([0xCE, 0xBB | rest], line, col, acc), # λ
-    do: lex(rest, line, col + 2, [{:backslash, line, col} | acc])
-
-  defp lex([0xCE, 0xA0 | rest], line, col, acc), # Π
-    do: lex(rest, line, col + 2, [{:pi_token, line, col} | acc])
-
-  defp lex([0xCE, 0xA3 | rest], line, col, acc), # Σ
-    do: lex(rest, line, col + 2, [{:sigma_token, line, col} | acc])
-
-  defp lex([0xE2, 0x88, 0xA7 | rest], line, col, acc), # ∧
-    do: lex(rest, line, col + 3, [{:and_token, line, col} | acc])
-
-  defp lex([0xE2, 0x88, 0xA8 | rest], line, col, acc), # ∨
-    do: lex(rest, line, col + 3, [{:or_token, line, col} | acc])
-
   defp lex([?\\ | rest], line, col, acc),
     do: lex(rest, line, col + 1, [{:backslash, line, col} | acc])
 
@@ -97,7 +97,8 @@ defmodule Per.Lexer do
 
   # Identifiers and Keywords
   defp lex([c | rest], line, col, acc)
-       when (c >= ?a and c <= ?z) or (c >= ?A and c <= ?Z) or c == ?_ or c > 127 do
+       when (c >= ?a and c <= ?z) or (c >= ?A and c <= ?Z) or c == ?_ or 
+            (c > 127 and c not in [?λ, ?Π, ?Σ, ?→, ?∧, ?∨]) do
     {ident_chars, rest2} = take_ident([c | rest])
     ident = List.to_string(ident_chars)
 

@@ -77,7 +77,6 @@ defmodule Per.Parser do
   end
 
   defp parse_decl(tokens) do
-    IO.inspect(tokens, label: "PARSE_DECL_TOKENS", limit: :infinity)
     case tokens do
       [{:import, _, _} | rest] ->
         case parse_module_name(rest) do
@@ -153,13 +152,14 @@ defmodule Per.Parser do
 
   defp parse_params(tokens, acc) do
     case tokens do
-      [{:ident, _, _, name} | rest] -> parse_params(rest, [%AST.Var{name: name} | acc])
+      [{:ident, _, _, name} | rest] -> 
+        parse_params(rest, [%AST.Var{name: name} | acc])
       [{:left_paren, _, _}, {:ident, _, _, name}, {:colon, _, _} | rest] ->
-         case parse_type(rest) do
-           {:ok, ty, [{:right_paren, _, _} | rest2]} ->
-             parse_params(rest2, [{name, ty} | acc])
-           _ -> {:error, :invalid_param}
-         end
+        case parse_type(rest) do
+          {:ok, ty, [{:right_paren, _, _} | rest2]} ->
+            parse_params(rest2, [{name, ty} | acc])
+          _ -> {:error, :invalid_param}
+        end
       _ -> {:ok, Enum.reverse(acc), tokens}
     end
   end
