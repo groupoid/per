@@ -130,8 +130,10 @@ https://groupoid.github.io/per/
 Loaded: mltt
 Loaded: inductive
 Loaded: univalent
-per> zero
-Result: sup 𝟐 ℕ-ctor 0₂ (λ (e : 𝟎), ind₀ ℕ e)
+per> :eval zero
+TYPE: W(x : 𝟐) (ind₂ \f -> U₀) 𝟎 𝟏 x
+TERM: (sup 𝟐 (ind₂ \f -> U₀) 𝟎 𝟏) 0₂ ind₀ W(x : 𝟐) (ind₂ \f -> U₀) 𝟎 𝟏 x
+per>
 </pre>
 </div>
         </section>
