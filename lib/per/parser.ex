@@ -265,6 +265,19 @@ defmodule Per.Parser do
   defp parse_expr_atom([{:ident, _, _, name} | rest]), do: {:ok, %AST.Var{name: name}, rest}
   defp parse_expr_atom([{:number, _, _, val} | rest]), do: {:ok, %AST.Universe{level: val}, rest}
 
+  defp parse_expr_atom([{:left_angle, _, _} | rest]) do
+    # <i j k> term
+    case parse_vars(rest) do
+      {:ok, vars, [{:right_angle, _, _} | rest2]} ->
+        case parse_expr(rest2) do
+          {:ok, body, rest3} ->
+            {:ok, desugar_path_lam(vars, body), rest3}
+          err -> err
+        end
+      _ -> {:error, :invalid_path_lambda}
+    end
+  end
+
   defp parse_expr_atom([{:hole, _, _} | rest]), do: {:ok, %AST.Hole{}, rest}
 
   defp parse_expr_atom([{:backslash, _, _} | rest]) do
@@ -395,7 +408,7 @@ defmodule Per.Parser do
     case parse_expr_atom(rest) do
       {:ok, a, rest2} ->
         case parse_expr_atom(rest2) do
-          {:ok, b, rest3} -> {:ok, %AST.Sup{first: a, second: b}, rest3}
+          {:ok, b, rest3} -> {:ok, %AST.Sup{a: a, b: b}, rest3}
           err -> err
         end
       err -> err
@@ -408,7 +421,7 @@ defmodule Per.Parser do
         case parse_expr_atom(rest2) do
           {:ok, b, rest3} ->
             case parse_expr_atom(rest3) do
-              {:ok, c, rest4} -> {:ok, %AST.IndW{type: a, expr1: b, expr2: c}, rest4}
+              {:ok, c, rest4} -> {:ok, %AST.IndW{a: a, b: b, motive: c}, rest4}
               err -> err
             end
           err -> err
@@ -459,6 +472,19 @@ defmodule Per.Parser do
     end
   end
 
+  defp parse_vars([{:ident, _, _, name} | rest]) do
+    case parse_vars(rest) do
+      {:ok, names, rest2} -> {:ok, [name | names], rest2}
+      _ -> {:ok, [name], rest}
+    end
+  end
+  defp parse_vars(tokens), do: {:ok, [], tokens}
+
+  defp desugar_path_lam([], body), do: body
+  defp desugar_path_lam([v | rest], body) do
+    # EPLam (ELam (EI, (v, pLam e rest)))
+    %AST.PLam{expr: %AST.Lam{name: v, domain: %AST.Interval{}, body: desugar_path_lam(rest, body)}}
+  end
   defp parse_expr_atom([{:empty_type, _, _} | rest]), do: {:ok, %AST.Empty{}, rest}
   defp parse_expr_atom([{:unit_type, _, _} | rest]), do: {:ok, %AST.Unit{}, rest}
   defp parse_expr_atom([{:bool_type, _, _} | rest]), do: {:ok, %AST.Bool{}, rest}

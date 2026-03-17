@@ -143,17 +143,17 @@ defmodule Per.Desugar do
       %AST.IndBool{type: t} ->
         %AST.IndBool{type: desugar_expression(t, env, func_name)}
 
-      %AST.IndW{type: t, expr1: e1, expr2: e2} ->
+      %AST.IndW{a: t, b: e1, motive: e2} ->
         %AST.IndW{
-          type: desugar_expression(t, env, func_name),
-          expr1: desugar_expression(e1, env, func_name),
-          expr2: desugar_expression(e2, env, func_name)
+          a: desugar_expression(t, env, func_name),
+          b: desugar_expression(e1, env, func_name),
+          motive: desugar_expression(e2, env, func_name)
         }
 
-      %AST.Sup{first: f, second: s} ->
+      %AST.Sup{a: f, b: s} ->
         %AST.Sup{
-          first: desugar_expression(f, env, func_name),
-          second: desugar_expression(s, env, func_name)
+          a: desugar_expression(f, env, func_name),
+          b: desugar_expression(s, env, func_name)
         }
 
       _ ->

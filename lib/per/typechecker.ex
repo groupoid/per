@@ -124,9 +124,9 @@ defmodule Per.Typechecker do
       %AST.W{name: x, domain: a, codomain: b} ->
         t = eval(a, ctx)
         %AST.W{name: x, domain: t, codomain: closByVal(ctx, x, t, b)}
-      %AST.Sup{first: a, second: b} -> %AST.Sup{first: eval(a, ctx), second: eval(b, ctx)}
-      %AST.IndW{type: a, expr1: b, expr2: c} ->
-        %AST.IndW{type: eval(a, ctx), expr1: eval(b, ctx), expr2: eval(c, ctx)}
+      %AST.Sup{a: a, b: b} -> %AST.Sup{a: eval(a, ctx), b: eval(b, ctx)}
+      %AST.IndW{a: a, b: b, motive: m} ->
+        %AST.IndW{a: eval(a, ctx), b: eval(b, ctx), motive: eval(m, ctx)}
       _ -> expr
     end
   end
@@ -229,10 +229,10 @@ defmodule Per.Typechecker do
       {%AST.FalseConstant{}, %AST.FalseConstant{}} -> true
       {%AST.TrueConstant{}, %AST.TrueConstant{}} -> true
 
-      {%AST.Sup{first: a1, second: b1}, %AST.Sup{first: a2, second: b2}} ->
+      {%AST.Sup{a: a1, b: b1}, %AST.Sup{a: a2, b: b2}} ->
         conv(a1, a2) && conv(b1, b2)
 
-      {%AST.IndW{type: a1, expr1: b1, expr2: c1}, %AST.IndW{type: a2, expr1: b2, expr2: c2}} ->
+      {%AST.IndW{a: a1, b: b1, motive: c1}, %AST.IndW{a: a2, b: b2, motive: c2}} ->
         conv(a1, a2) && conv(b1, b2) && conv(c1, c2)
 
       {%AST.IndBool{type: a}, %AST.IndBool{type: b}} -> conv(a, b)
@@ -388,7 +388,7 @@ defmodule Per.Typechecker do
         _ = extSet(g.(%AST.FalseConstant{}))
         rec_bool(eval(e, ctx))
 
-      %AST.Sup{first: a, second: b} ->
+      %AST.Sup{a: a, b: b} ->
         t = eval(a, ctx)
         _ = extSet(infer(ctx, a))
         {t_prime, {_p, g}} = extPiG(infer(ctx, b))
@@ -397,7 +397,7 @@ defmodule Per.Typechecker do
         _ = extSet(g.(%AST.Var{name: "x"}))
         infer_sup(t, eval(b, ctx))
 
-      %AST.IndW{type: a, expr1: b, expr2: c} ->
+      %AST.IndW{a: a, b: b, motive: c} ->
         # OCaml logic for IndW: inferIndW t (eval b ctx) (eval c ctx)
         t = eval(a, ctx)
         _ = extSet(infer(ctx, a))
@@ -443,7 +443,7 @@ defmodule Per.Typechecker do
                   domain: app(b, x),
                   codomain: fn b_val -> app(c, app(f, b_val)) end
                 },
-                app(c, app(app(%AST.Sup{first: x, second: f}, x), f))
+                app(c, app(app(%AST.Sup{a: x, b: f}, x), f))
               )
             end
           }

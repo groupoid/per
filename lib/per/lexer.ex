@@ -71,6 +71,7 @@ defmodule Per.Lexer do
     do: lex(rest, line, col + 1, [{:right_brace, line, col} | acc])
 
   defp lex([?, | rest], line, col, acc), do: lex(rest, line, col + 1, [{:comma, line, col} | acc])
+  defp lex([?@ | rest], line, col, acc), do: lex(rest, line, col + 1, [{:at_sign, line, col} | acc])
 
   defp lex([?; | rest], line, col, acc),
     do: lex(rest, line, col + 1, [{:semicolon, line, col} | acc])

@@ -91,7 +91,7 @@ defmodule Per.Codegen do
     {:call, 1, {:atom, 1, :element}, [{:integer, 1, 2}, generate_expr(e, local_env, env, mod)]}
   end
 
-  defp generate_expr(%AST.Sup{first: f, second: s}, local_env, env, mod) do
+  defp generate_expr(%AST.Sup{a: f, b: s}, local_env, env, mod) do
     {:tuple, 1, [{:atom, 1, :sup}, generate_expr(f, local_env, env, mod), generate_expr(s, local_env, env, mod)]}
   end
 

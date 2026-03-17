@@ -186,11 +186,11 @@ defmodule Per.AST do
   end
 
   defmodule Sup do
-    defstruct [:first, :second]
+    defstruct [:a, :b]
   end
 
   defmodule IndW do
-    defstruct [:type, :expr1, :expr2]
+    defstruct [:a, :b, :motive]
   end
 
   # --- Pretty Printing ---
@@ -261,7 +261,11 @@ defmodule Per.AST do
       %W{name: x, domain: a, codomain: b} ->
         domain_str = if complex?(a), do: "(#{to_string(a)})", else: to_string(a)
         "W(#{x} : #{domain_str}) #{to_string(b)}"
-      %Sup{first: a, second: b} -> "sup #{to_string(a)} #{to_string(b)}"
+      %Sup{a: a, b: b} -> "sup #{to_string(a)} #{to_string(b)}"
+      %IndW{a: a, b: b, motive: m} -> "indᵂ #{to_string(a)} #{to_string(b)} #{to_string(m)}"
+      %IndEmpty{type: t} -> "ind₀ #{to_string(t)}"
+      %IndUnit{type: t} -> "ind₁ #{to_string(t)}"
+      %IndBool{type: t} -> "ind₂ #{to_string(t)}"
 
       _ ->
         inspect(term)
