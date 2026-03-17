@@ -257,12 +257,15 @@ defmodule Per.AST do
       %Inc{type: t, phi: r} -> "inc #{to_string(t)} #{to_string(r)}"
       %Ouc{expr: e} -> "ouc #{to_string(e)}"
 
-      %Empty{} -> "Empty"
-      %Unit{} -> "Unit"
-      %Star{} -> "star"
-      %Bool{} -> "Bool"
-      %FalseConstant{} -> "false"
-      %TrueConstant{} -> "true"
+      %Neutral{term: t} ->
+        to_string(t)
+
+      %Empty{} -> "𝟎"
+      %Unit{} -> "𝟏"
+      %Star{} -> "★"
+      %Bool{} -> "𝟐"
+      %FalseConstant{} -> "0₂"
+      %TrueConstant{} -> "1₂"
 
       %W{name: x, domain: a, codomain: b} ->
         domain_str = if complex?(a), do: "(#{to_string(a)})", else: to_string(a)
@@ -272,6 +275,8 @@ defmodule Per.AST do
       %IndEmpty{type: t} -> "ind₀ #{to_string(t)}"
       %IndUnit{type: t} -> "ind₁ #{to_string(t)}"
       %IndBool{type: t} -> "ind₂ #{to_string(t)}"
+
+      nil -> "nil"
 
       _ ->
         inspect(term)

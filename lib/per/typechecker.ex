@@ -819,7 +819,65 @@ defmodule Per.Typechecker do
   end
 
   def normalize(env, term) do
-    eval(term, env.ctx)
+    val = eval(term, env.ctx)
+    readback(val)
+  end
+
+  def readback(val) do
+    case val do
+      %AST.Universe{level: l} -> %AST.Universe{level: l}
+      %AST.Pi{name: x, domain: a, codomain: f} when is_function(f) ->
+        %AST.Pi{name: x, domain: readback(a), codomain: readback(f.(%AST.Var{name: x}))}
+      %AST.Sigma{name: x, domain: a, codomain: f} when is_function(f) ->
+        %AST.Sigma{name: x, domain: readback(a), codomain: readback(f.(%AST.Var{name: x}))}
+      %AST.Lam{name: x, body: f} when is_function(f) ->
+        # Type is not strictly needed for readback of Lam if we don't store it
+        %AST.Lam{name: x, body: readback(f.(%AST.Var{name: x}))}
+      %AST.Pair{first: a, second: b, tag: r} ->
+        %AST.Pair{first: readback(a), second: readback(b), tag: r}
+      %AST.Var{name: x} -> %AST.Var{name: x}
+      %AST.Neutral{term: t} -> readback(t)
+      %AST.App{func: f, arg: a} -> %AST.App{func: readback(f), arg: readback(a)}
+      %AST.Fst{expr: e} -> %AST.Fst{expr: readback(e)}
+      %AST.Snd{expr: e} -> %AST.Snd{expr: readback(e)}
+      %AST.PathP{path: p, u0: u0, u1: u1} ->
+        %AST.PathP{path: readback(p), u0: if(u0, do: readback(u0)), u1: if(u1, do: readback(u1))}
+      %AST.PLam{name: x, body: f} when is_function(f) ->
+        %AST.PLam{name: x, body: readback(f.(%AST.Var{name: x}))}
+      %AST.AppFormula{left: e, right: x} ->
+        %AST.AppFormula{left: readback(e), right: readback(x)}
+      %AST.Interval{} -> %AST.Interval{}
+      %AST.Dir{val: d} -> %AST.Dir{val: d}
+      %AST.And{left: e1, right: e2} -> %AST.And{left: readback(e1), right: readback(e2)}
+      %AST.Or{left: e1, right: e2} -> %AST.Or{left: readback(e1), right: readback(e2)}
+      %AST.Neg{expr: e} -> %AST.Neg{expr: readback(e)}
+      %AST.Transp{path: p, phi: i} -> %AST.Transp{path: readback(p), phi: readback(i)}
+      %AST.HComp{type: t, phi: r, u: u, u0: u0} ->
+        %AST.HComp{type: readback(t), phi: readback(r), u: readback(u), u0: readback(u0)}
+      %AST.Partial{expr: e} -> %AST.Partial{expr: readback(e)}
+      %AST.PartialP{type: t, phi: r} -> %AST.PartialP{type: readback(t), phi: readback(r)}
+      %AST.System{map: xs} ->
+        %AST.System{map: Enum.map(xs, fn {face, term} -> {face, readback(term)} end)}
+      %AST.Sub{type: a, phi: i, u: u} ->
+        %AST.Sub{type: readback(a), phi: readback(i), u: readback(u)}
+      %AST.Inc{type: t, phi: r} -> %AST.Inc{type: readback(t), phi: readback(r)}
+      %AST.Ouc{expr: e} -> %AST.Ouc{expr: readback(e)}
+      %AST.Empty{} -> %AST.Empty{}
+      %AST.IndEmpty{type: e} -> %AST.IndEmpty{type: readback(e)}
+      %AST.Unit{} -> %AST.Unit{}
+      %AST.Star{} -> %AST.Star{}
+      %AST.IndUnit{type: e} -> %AST.IndUnit{type: readback(e)}
+      %AST.Bool{} -> %AST.Bool{}
+      %AST.FalseConstant{} -> %AST.FalseConstant{}
+      %AST.TrueConstant{} -> %AST.TrueConstant{}
+      %AST.IndBool{type: e} -> %AST.IndBool{type: readback(e)}
+      %AST.W{name: x, domain: a, codomain: f} when is_function(f) ->
+        %AST.W{name: x, domain: readback(a), codomain: readback(f.(%AST.Var{name: x}))}
+      %AST.Sup{a: a, b: b} -> %AST.Sup{a: readback(a), b: readback(b)}
+      %AST.IndW{a: a, b: b, motive: m} ->
+        %AST.IndW{a: readback(a), b: readback(b), motive: readback(m)}
+      _ -> val
+    end
   end
 
   def check_module(%AST.Module{declarations: decls}, env) do

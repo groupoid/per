@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Per — Semi-cubical MLTT-80</title>
+    <link rel="stylesheet" href="index.css?v=8">
+    <style>
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        @media (max-width: 900px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="sticky">
+        <div class="nav-container">
+            <a href="https://groupoid.space" class="logo"><img width="50" style="margin-bottom:-15px;" src="https://avatars.githubusercontent.com/u/17128096?s=200&v=4"></a>
+            <ul class="nav-links">
+                <li><a href="index.html">Language</a></li>
+                <li><a href="library/index.html">Library</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <header>
+        <div class="hero-content">
+            <h1>Per</h1>
+            <p class="hero-subtitle">A semi-cubical implementation of Martin-Löf: Intuitionistic Type Theory (MLTT-80). 
+            Per is an internalized model capable of checking theorems about itself, providing a foundational core for higher-order dependently typed systems.</p>
+        </div>
+    </header>
+
+    <main>
+        <section>
+            <h2>Abstract</h2>
+            <div style="max-width:800px;margin:0 auto;text-align: center;">
+                <p><b>Per</b> is a theorem prover that constitutes a MLTT-80 core for a dependently-typed lambda calculus. 
+                It is specifically constrained to exclude pattern matching, let-bindings, and implicit arguments to focus on the pure mathematical properties of the core.
+                It encompasses universes, dependent products <code>Pi</code>, dependent pairs <code>Sigma</code>, identity types <code>Id</code>, 
+                and <code>0</code>, <code>1</code>, <code>2</code>, <code>W</code> types for well-founded definitions.</p>
+                <p>Unlike full cubical DNF solvers or HIT-enriched systems with complex composition structures, 
+                Per remains a minimal semi-cubical system. It focuses on correctness, soundness, totality, and canonicity — 
+                the essential attributes for formal mathematics and self-internalized type theory.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>Canonicity of Natural Numbers</h2>
+            <p style="text-align: center; margin-bottom: 2rem;">Comparison of constructive natural numbers: structural vs. homotopical representations.</p>
+            <div class="grid-2">
+                <div class="package-card">
+                    <h3>Strong Canonicity</h3>
+                    <hr>
+                    <p><b>canonical.per</b> — Natural numbers as a direct W-type. Every closed term of type Nat normalizes to a constructor form, perfectly satisfying the canonicity property.</p>
+                    <pre class="code-snippet" style="font-size: 0.85rem;">
+def A : U := 𝟐
+def B (b : 𝟐) : U₀ := ind₂ (λ (_ : 𝟐), U₀) 𝟎 𝟏 b
+def Nat : U₀ := W (b : A), B b
+
+def zero : Nat := sup A B 0₂ (λ (e : 𝟎), ind₀ Nat e)
+def succ (n : Nat) : Nat := sup A B 1₂ (λ (u : 𝟏), n)</pre>
+                    <p>Standard constructive semantics with strict reduction paths.</p>
+                </div>
+
+                <div class="package-card">
+                    <h3>Homotopical Nature</h3>
+                    <hr>
+                    <p><b>homotopical.per</b> — Homotopy-inductive natural numbers. Lacks the strong canonicity of structural types as they are defined via <code>transp</code> and <code>PathP</code>.</p>
+                    <pre class="code-snippet" style="font-size: 0.85rem;">
+def ℕ := W (x : 𝟐), ℕ-ctor x
+def zero : ℕ := sup 𝟐 ℕ-ctor 0₂ (ind₀ ℕ)
+
+def 𝟎⟶ℕ (C : ℕ → U) (f : 𝟎 → ℕ) : C zero → C (sup 𝟐 ℕ-ctor 0₂ f)
+ := transp (&lt;i> C (sup 𝟐 ℕ-ctor 0₂ (λ (x : 𝟎), ind₀ (PathP (&lt;_> ℕ) 
+    (ind₀ ℕ x) (f x)) x @ i))) 0</pre>
+
+                    <p>Demonstrates the fluidity of semi-cubical foundations without strict structural constraints.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Self-Checking Core</h2>
+            <div class="grid-2">
+                <div class="product-card">
+                    <h3>Internalized Model</h3>
+                    <p>Per is designed to be self-hosting in its logic. The core constructs are represented within the language itself, allowing for proofs about the typechecker's own behaviors and properties.</p>
+                    <pre class="code-snippet">
+def internalizing : MLTT-73
+ := ( Pi ★, Π-lambda ★, Π-apply ★, Π-β ★, Π-η ★,
+      Sigma ★, pair ★, pr₁ ★, pr₂ ★, Σ-β₁ ★, Σ-β₂ ★, Σ-η ★,
+      Path-1 ★, idp-1 ★, J-1 ★, J-β ★,
+      ★
+    )</pre>
+                </div>
+                <div class="product-card">
+                    <h3>Foundational Focus</h3>
+                    <p>Per excludes high-level sugar to maintain a lean, provable core. It leverages <b>Judgmental Equality</b> and <b>Strong Normalization</b>, ensuring that every well-typed term reduces to a unique normal form, even in the presence of universes and well-founded types.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Interactive Foundations</h2>
+            <div style="max-width:720px;margin:0 auto;">
+                <pre class="code-snippet">
+$ mix per.base
+Compiling Per base library...
+  Compiling priv/per/foundations/mltt.per... OK
+  Compiling priv/per/foundations/inductive.per... OK
+  Compiling priv/per/foundations/univalent.per... OK
+
+Per base library compilation finished successfully.
+</pre>
+</div>
+
+            <div style="max-width:720px;margin:0 auto;">
+                <pre class="code-snippet">
+$ mix per.repl
+🧊 Per Programming Language version 0.4.0 [Lean Syntax]
+Copyright (c) 2016-2026 Groupoid Infinity
+https://groupoid.github.io/per/
+
+Loaded: mltt
+Loaded: inductive
+Loaded: univalent
+per> zero
+Result: sup 𝟐 ℕ-ctor 0₂ (λ (e : 𝟎), ind₀ ℕ e)
+</pre>
+</div>
+        </section>
+
+        <section class="section-standards">
+            <h2>Open Source</h2>
+            <center>
+                <a href="https://github.com/groupoid/per">
+                    <img style="width:150px;" src="https://n2o.dev/img/github.svg" alt="GitHub Logo">
+                    </a>
+          <br>
+          <br>
+          <br>
+          <br>
+          <img src="https://openmoji.org/data/color/svg/1F1F8-1F1EA.svg" height=50 style="margin:-00px;padding:0px;">
+          <img src="https://openmoji.org/data/color/svg/1F1FA-1F1E6.svg" height=50 style="margin:-00px;padding:0px;">
+            </center>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-columns">
+            <div>
+                <h4>Per</h4>
+                <p>Semi-cubical MLTT implementation in Elixir and OCaml</p>
+            </div>
+            <div>
+                <h4>Bibliography</h4>
+                <ul>
+                    <li><a href="https://pure.tue.nl/ws/portalfiles/portal/2039924/256169.pdf">AUTOMATH, a language for mathematics. [Nicolaas Govert de Bruijn]</a></li>
+                    <li><a href="https://home.ttic.edu/~dreyer/course/papers/barendregt.pdf">Lambda Calculi with Types [Henk Barendregt]</a></li>
+                    <li><a href="https://core.ac.uk/download/pdf/82038778.pdf">The Calculus of Constructions [Thierry Coquand, Gerard Huet]</a></li>
+                    <li><a href="https://www.cs.kent.ac.uk/people/staff/dat/miranda/overview.pdf">An Overview of Miranda [David Turner]</a></li>
+                    <li><a href="https://www.cse.chalmers.se/~coquand/v1.pdf">Some remarks about Dependent Type Theory [Thierry Coquand]</a></li>
+                    <li><a href="https://groupoid.github.io/per/articles/per.pdf">Per: Mini Semi-Cubical MLTT [Namdak Tonpa]</a></li>
+                </ul>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
