@@ -204,11 +204,12 @@ defmodule Per.Lexer do
     {:error, "Unexpected character: #{<<c::utf8>>} at #{line}:#{col}"}
   end
 
-  defp take_ident([c | rest])
-       when (c >= ?a and c <= ?z) or (c >= ?A and c <= ?Z) or (c >= ?0 and c <= ?9) or c == ?_ or
-              c == ?' or c == ?- or c > 127 do
-    {rest_ident, rest2} = take_ident(rest)
-    {[c | rest_ident], rest2}
+  defp take_ident([c | rest]) do
+    take_while([c | rest], fn x ->
+      (x >= ?a and x <= ?z) or (x >= ?A and x <= ?Z) or (x >= ?0 and x <= ?9) or 
+      x == ?_ or x == ?' or x == ?- or 
+      (x > 127 and x not in [?λ, ?Π, ?Σ, ?→, ?∧, ?∨])
+    end)
   end
 
   defp take_ident(rest), do: {[], rest}
