@@ -7,9 +7,8 @@
 
    Copyright (c) Groupoid Infinity, 2014-2023. -}
 
-module nat where
+module Homotopical where
 import inductive
-
 
 def ℕ-ctor := ind₂ (λ (f : 𝟐), U) 𝟎 𝟏
 def ℕ := W (x : 𝟐), ℕ-ctor x

@@ -11,8 +11,13 @@ defmodule Per.Codegen do
     module_attr = {:attribute, 1, :module, current_mod}
     export_all = {:attribute, 1, :compile, :export_all}
     no_warn = {:attribute, 1, :compile, :nowarn_unused_vars}
+    
+    # Add dummy function to prevent undefined_function errors for catch-all
+    dummy_fun = {:function, 1, :not_implemented_in_codegen, 1, [
+      {:clause, 1, [{:var, 1, :_}], [], [{:atom, 1, :skipped}]}
+    ]}
 
-    forms = [module_attr, export_all, no_warn] ++ functions ++ [{:eof, 1}]
+    forms = [module_attr, export_all, no_warn, dummy_fun] ++ functions ++ [{:eof, 1}]
     {:ok, forms}
   end
 
