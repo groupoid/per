@@ -234,161 +234,51 @@ defmodule Per.Parser do
     end
   end
 
-  defp parse_binders([{:ident, _, _, name} | rest], acc),
-    do: parse_binders(rest, [%AST.Var{name: name} | acc])
+  defp parse_expr(tokens), do: parse_expr_binder(tokens)
 
-  defp parse_binders(tokens, acc), do: {:ok, Enum.reverse(acc), tokens}
+  defp parse_expr_binder([{:backslash, _, _} | rest]), do: parse_lam(rest)
+  defp parse_expr_binder([{:pi_token, _, _} | rest]), do: parse_pi(rest)
+  defp parse_expr_binder([{:sigma_token, _, _} | rest]), do: parse_sigma(rest)
+  defp parse_expr_binder([{:w_type, _, _} | rest]), do: parse_w(rest)
+  defp parse_expr_binder(tokens), do: parse_expr_logic_or(tokens)
 
-  defp parse_expr(tokens) do
-    case parse_expr_formula(tokens) do
-      {:ok, f, rest} -> parse_expr_app_tail(f, rest)
-      err -> err
-    end
-  end
-
-  defp parse_expr_formula(tokens) do
-    case parse_expr_atom(tokens) do
-      {:ok, e1, [{:and_token, _, _} | rest]} ->
-        case parse_expr_formula(rest) do
-          {:ok, e2, rest2} -> {:ok, %AST.And{left: e1, right: e2}, rest2}
-          _ -> {:ok, e1, rest}
-        end
-      {:ok, e1, [{:or_token, _, _} | rest]} ->
-        case parse_expr_formula(rest) do
-          {:ok, e2, rest2} -> {:ok, %AST.Or{left: e1, right: e2}, rest2}
-          _ -> {:ok, e1, rest}
-        end
-      res -> res
-    end
-  end
-
-  defp parse_expr_atom([{:ident, _, _, name} | rest]), do: {:ok, %AST.Var{name: name}, rest}
-  defp parse_expr_atom([{:number, _, _, val} | rest]), do: {:ok, %AST.Universe{level: val}, rest}
-
-  defp parse_expr_atom([{:left_angle, _, _} | rest]) do
-    # <i j k> term
-    case parse_vars(rest) do
-      {:ok, vars, [{:right_angle, _, _} | rest2]} ->
-        case parse_expr(rest2) do
-          {:ok, body, rest3} ->
-            {:ok, desugar_path_lam(vars, body), rest3}
-          err -> err
-        end
-      _ -> {:error, :invalid_path_lambda}
-    end
-  end
-
-  defp parse_expr_atom([{:hole, _, _} | rest]), do: {:ok, %AST.Hole{}, rest}
-
-  defp parse_expr_atom([{:backslash, _, _} | rest]) do
+  defp parse_lam(rest) do
     case parse_params(rest, []) do
       {:ok, params, [divider | rest2]} when elem(divider, 0) in [:arrow, :comma] ->
         case parse_expr(rest2) do
           {:ok, body, rest3} ->
-            # Fold params into Lam nodes
-            expr =
-              Enum.reduce(Enum.reverse(params), body, fn
-                {name, ty}, acc -> %AST.Lam{name: name, domain: ty, body: acc}
-                %AST.Var{name: name}, acc -> %AST.Lam{name: name, domain: %AST.Hole{}, body: acc}
-                _, acc -> acc
-              end)
-
-            {:ok, expr, rest3}
-
-          err ->
-            err
+            {:ok, mk_lam_tele(params, body), rest3}
+          err -> err
         end
-
-      _ ->
-        {:error, :invalid_lambda}
+      _ -> {:error, :invalid_lambda}
     end
   end
 
-  defp parse_expr_atom([{:left_paren, _, _} | rest]) do
-    case parse_expr_list(rest, []) do
-      {:ok, exprs, [{:right_paren, _, _} | rest2]} ->
-        case exprs do
-          [e] -> {:ok, e, rest2}
-          _ -> {:ok, %AST.Pair{first: hd(exprs), second: tl(exprs)}, rest2} # simplified pair
-        end
-      err -> err
-    end
-  end
-
-  defp parse_expr_atom([{:left_square, _, _} | rest]) do
-     case parse_system(rest, []) do
-       {:ok, sys, [{:right_square, _, _} | rest2]} -> {:ok, %AST.System{map: sys}, rest2}
-       err -> err
-     end
-  end
-
-  defp parse_expr_atom([{:left_angle, _, _} | rest]) do # < i > e
-    case parse_binders(rest, []) do
-      {:ok, binders, [{:right_angle, _, _} | rest2]} ->
+  defp parse_pi(rest) do
+    case parse_params(rest, []) do
+      {:ok, params, [divider | rest2]} when elem(divider, 0) in [:arrow, :comma] ->
         case parse_expr(rest2) do
-          {:ok, e, rest3} -> {:ok, %AST.PLam{expr: Enum.reduce(binders, e, fn b, acc -> %AST.Lam{name: b.name, domain: %AST.Interval{}, body: acc} end)}, rest3}
+          {:ok, body, rest3} ->
+            {:ok, mk_pi_tele(params, body), rest3}
           err -> err
         end
-      _ -> {:error, :invalid_plam}
+      _ -> {:error, :invalid_pi}
     end
   end
 
-  defp parse_expr_atom([{:pathp, _, _} | rest]) do
-     case parse_expr_atom(rest) do
-       {:ok, p, rest2} -> {:ok, %AST.PathP{path: p}, rest2}
-       err -> err
-     end
-  end
-
-  defp parse_expr_atom([{:transp, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, p, rest2} ->
-        case parse_expr_atom(rest2) do
-          {:ok, phi, rest3} -> {:ok, %AST.Transp{path: p, phi: phi}, rest3}
+  defp parse_sigma(rest) do
+    case parse_params(rest, []) do
+      {:ok, params, [divider | rest2]} when elem(divider, 0) in [:arrow, :comma] ->
+        case parse_expr(rest2) do
+          {:ok, body, rest3} ->
+            {:ok, mk_sigma_tele(params, body), rest3}
           err -> err
         end
-      err -> err
+      _ -> {:error, :invalid_sigma}
     end
   end
 
-  defp parse_expr_atom([{:hcomp, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, t, rest2} ->
-        case parse_expr_atom(rest2) do
-          {:ok, phi, rest3} ->
-            case parse_expr_atom(rest3) do
-              {:ok, u, rest4} ->
-                case parse_expr_atom(rest4) do
-                  {:ok, u0, rest5} -> {:ok, %AST.HComp{type: t, phi: phi, u: u, u0: u0}, rest5}
-                  err -> err
-                end
-              err -> err
-            end
-          err -> err
-        end
-      err -> err
-    end
-  end
-
-  defp parse_expr_atom([{:partial, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, e, rest2} -> {:ok, %AST.Partial{expr: e}, rest2}
-      err -> err
-    end
-  end
-
-  defp parse_expr_atom([{:partialp, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, t, rest2} ->
-        case parse_expr_atom(rest2) do
-          {:ok, phi, rest3} -> {:ok, %AST.PartialP{type: t, phi: phi}, rest3}
-          err -> err
-        end
-      err -> err
-    end
-  end
-
-  defp parse_expr_atom([{:w_type, _, _} | rest]) do
+  defp parse_w(rest) do
     # W (x : A), B x
     case rest do
       [{:left_paren, _, _}, {:ident, _, _, name}, {:colon, _, _} | rest2] ->
@@ -404,93 +294,209 @@ defmodule Per.Parser do
     end
   end
 
-  defp parse_expr_atom([{:sup, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, a, rest2} ->
-        case parse_expr_atom(rest2) do
-          {:ok, b, rest3} -> {:ok, %AST.Sup{a: a, b: b}, rest3}
-          err -> err
+  defp parse_expr_logic_or(tokens) do
+    case parse_expr_logic_and(tokens) do
+      {:ok, e1, [{:or_token, _, _} | rest]} ->
+        case parse_expr_logic_or(rest) do
+          {:ok, e2, rest2} -> {:ok, %AST.Or{left: e1, right: e2}, rest2}
+          _ -> {:ok, e1, rest}
         end
+      res -> res
+    end
+  end
+
+  defp parse_expr_logic_and(tokens) do
+    case parse_expr_logic_arrow(tokens) do
+      {:ok, e1, [{:and_token, _, _} | rest]} ->
+        case parse_expr_logic_and(rest) do
+          {:ok, e2, rest2} -> {:ok, %AST.And{left: e1, right: e2}, rest2}
+          _ -> {:ok, e1, rest}
+        end
+      res -> res
+    end
+  end
+
+  defp parse_expr_logic_arrow(tokens) do
+    case parse_expr_logic_at(tokens) do
+      {:ok, e1, [{:arrow, _, _} | rest]} ->
+        case parse_expr_logic_arrow(rest) do
+          {:ok, e2, rest2} -> {:ok, %AST.Pi{name: "_", domain: e1, codomain: e2}, rest2}
+          _ -> {:ok, e1, rest}
+        end
+      {:ok, e1, [{:prod_token, _, _} | rest]} ->
+        case parse_expr_logic_arrow(rest) do
+          {:ok, e2, rest2} -> {:ok, %AST.Sigma{name: "_", domain: e1, codomain: e2}, rest2}
+          _ -> {:ok, e1, rest}
+        end
+      res -> res
+    end
+  end
+
+  defp parse_expr_logic_at(tokens) do
+    case parse_expr_app(tokens) do
+      {:ok, e1, rest} -> parse_expr_logic_at_tail(e1, rest)
       err -> err
     end
   end
 
-  defp parse_expr_atom([{:ind_w, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, a, rest2} ->
-        case parse_expr_atom(rest2) do
-          {:ok, b, rest3} ->
-            case parse_expr_atom(rest3) do
-              {:ok, c, rest4} -> {:ok, %AST.IndW{a: a, b: b, motive: c}, rest4}
+  defp parse_expr_logic_at_tail(e1, [{:at_sign, _, _} | rest]) do
+    case parse_expr_app(rest) do
+      {:ok, e2, rest2} -> parse_expr_logic_at_tail(%AST.AppFormula{left: e1, right: e2}, rest2)
+      err -> err
+    end
+  end
+  defp parse_expr_logic_at_tail(e1, rest), do: {:ok, e1, rest}
+
+  defp parse_expr_app(tokens) do
+    case parse_expr_unary(tokens) do
+      {:ok, f, rest} -> parse_expr_app_tail(f, rest)
+      err -> err
+    end
+  end
+
+
+  defp parse_expr_unary([token | rest] = tokens) do
+    case token do
+      {:pathp, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, p, rest2} -> {:ok, %AST.PathP{path: p}, rest2}
+          err -> err
+        end
+      {:transp, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, p, rest2} ->
+            case parse_expr_atom(rest2) do
+              {:ok, phi, rest3} -> {:ok, %AST.Transp{path: p, phi: phi}, rest3}
               err -> err
             end
           err -> err
         end
-      err -> err
+      {:hcomp, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, t, rest2} ->
+            case parse_expr_atom(rest2) do
+              {:ok, phi, rest3} ->
+                case parse_expr_atom(rest3) do
+                  {:ok, u, rest4} ->
+                    case parse_expr_atom(rest4) do
+                      {:ok, u0, rest5} -> {:ok, %AST.HComp{type: t, phi: phi, u: u, u0: u0}, rest5}
+                      err -> err
+                    end
+                  err -> err
+                end
+              err -> err
+            end
+          err -> err
+        end
+      {:partial, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, e, rest2} -> {:ok, %AST.Partial{expr: e}, rest2}
+          err -> err
+        end
+      {:partialp, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, t, rest2} ->
+            case parse_expr_atom(rest2) do
+              {:ok, phi, rest3} -> {:ok, %AST.PartialP{type: t, phi: phi}, rest3}
+              err -> err
+            end
+          err -> err
+        end
+      {:sup, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, a, rest2} ->
+            case parse_expr_atom(rest2) do
+              {:ok, b, rest3} -> {:ok, %AST.Sup{a: a, b: b}, rest3}
+              err -> err
+            end
+          err -> err
+        end
+      {:ind_w, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, a, rest2} ->
+            case parse_expr_atom(rest2) do
+              {:ok, b, rest3} ->
+                case parse_expr_atom(rest3) do
+                  {:ok, c, rest4} -> {:ok, %AST.IndW{a: a, b: b, motive: c}, rest4}
+                  err -> err
+                end
+              err -> err
+            end
+          err -> err
+        end
+      {:id_type, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, t, rest2} -> {:ok, %AST.Id{type: t}, rest2}
+          err -> err
+        end
+      {:ref_term, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, e, rest2} -> {:ok, %AST.Refl{expr: e}, rest2}
+          err -> err
+        end
+      {:idj, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, e, rest2} -> {:ok, %AST.IdJ{expr: e}, rest2}
+          err -> err
+        end
+      {:ind_empty, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, t, rest2} -> {:ok, %AST.IndEmpty{type: t}, rest2}
+          err -> err
+        end
+      {:ind_unit, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, t, rest2} -> {:ok, %AST.IndUnit{type: t}, rest2}
+          err -> err
+        end
+      {:ind_bool, _, _} ->
+        case parse_expr_atom(rest) do
+          {:ok, t, rest2} -> {:ok, %AST.IndBool{type: t}, rest2}
+          err -> err
+        end
+      _ -> parse_expr_atom(tokens)
     end
   end
 
-  defp parse_expr_atom([{:id_type, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, t, rest2} -> {:ok, %AST.Id{type: t}, rest2}
-      err -> err
+  defp parse_expr_atom([token | rest]) do
+    case token do
+      {:ident, _, _, name} -> {:ok, %AST.Var{name: name}, rest}
+      {:number, _, _, val} -> {:ok, %AST.Universe{level: val}, rest}
+      {:hole, _, _} -> {:ok, %AST.Hole{}, rest}
+      {:left_angle, _, _} ->
+        case parse_vars(rest) do
+          {:ok, vars, [{:right_angle, _, _} | rest2]} ->
+            case parse_expr(rest2) do
+              {:ok, body, rest3} ->
+                {:ok, desugar_path_lam(vars, body), rest3}
+              err -> err
+            end
+          _ -> {:error, :invalid_path_lambda}
+        end
+      {:left_paren, _, _} ->
+        case parse_expr_list(rest, []) do
+          {:ok, exprs, [{:right_paren, _, _} | rest2]} ->
+            case exprs do
+              [e] -> {:ok, e, rest2}
+              _ -> {:ok, %AST.Pair{first: hd(exprs), second: tl(exprs)}, rest2}
+            end
+          err -> err
+        end
+      {:left_square, _, _} ->
+        case parse_system(rest, []) do
+          {:ok, sys, [{:right_square, _, _} | rest2]} -> {:ok, %AST.System{map: sys}, rest2}
+          err -> err
+        end
+      {:empty_type, _, _} -> {:ok, %AST.Empty{}, rest}
+      {:unit_type, _, _} -> {:ok, %AST.Unit{}, rest}
+      {:bool_type, _, _} -> {:ok, %AST.Bool{}, rest}
+      {:false_kw, _, _} -> {:ok, %AST.FalseConstant{}, rest}
+      {:true_kw, _, _} -> {:ok, %AST.TrueConstant{}, rest}
+      {:star_kw, _, _} -> {:ok, %AST.Star{}, rest}
+      _ -> {:error, :no_expr_atom, token}
     end
   end
-
-  defp parse_expr_atom([{:ref_term, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, e, rest2} -> {:ok, %AST.Refl{expr: e}, rest2}
-      err -> err
-    end
-  end
-
-  defp parse_expr_atom([{:idj, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, e, rest2} -> {:ok, %AST.IdJ{expr: e}, rest2}
-      err -> err
-    end
-  end
-
-  defp parse_expr_atom([{:ind_empty, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, t, rest2} -> {:ok, %AST.IndEmpty{type: t}, rest2}
-      err -> err
-    end
-  end
-
-  defp parse_expr_atom([{:ind_unit, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, t, rest2} -> {:ok, %AST.IndUnit{type: t}, rest2}
-      err -> err
-    end
-  end
-
-  defp parse_expr_atom([{:ind_bool, _, _} | rest]) do
-    case parse_expr_atom(rest) do
-      {:ok, t, rest2} -> {:ok, %AST.IndBool{type: t}, rest2}
-      err -> err
-    end
-  end
-
-  defp parse_vars([{:ident, _, _, name} | rest]) do
-    case parse_vars(rest) do
-      {:ok, names, rest2} -> {:ok, [name | names], rest2}
-      _ -> {:ok, [name], rest}
-    end
-  end
-  defp parse_vars(tokens), do: {:ok, [], tokens}
-
-  defp desugar_path_lam([], body), do: body
-  defp desugar_path_lam([v | rest], body) do
-    # EPLam (ELam (EI, (v, pLam e rest)))
-    %AST.PLam{expr: %AST.Lam{name: v, domain: %AST.Interval{}, body: desugar_path_lam(rest, body)}}
-  end
-  defp parse_expr_atom([{:empty_type, _, _} | rest]), do: {:ok, %AST.Empty{}, rest}
-  defp parse_expr_atom([{:unit_type, _, _} | rest]), do: {:ok, %AST.Unit{}, rest}
-  defp parse_expr_atom([{:bool_type, _, _} | rest]), do: {:ok, %AST.Bool{}, rest}
-  defp parse_expr_atom([{:false_kw, _, _} | rest]), do: {:ok, %AST.FalseConstant{}, rest}
-  defp parse_expr_atom([{:true_kw, _, _} | rest]), do: {:ok, %AST.TrueConstant{}, rest}
-  defp parse_expr_atom([{:star_kw, _, _} | rest]), do: {:ok, %AST.Star{}, rest}
+  defp parse_expr_atom([]), do: {:error, :unexpected_eof}
 
   defp parse_expr_atom(tokens), do: {:error, :no_expr_atom, Enum.take(tokens, 5)}
 
@@ -543,11 +549,33 @@ defmodule Per.Parser do
     end
   end
 
+  defp parse_vars([{:ident, _, _, name} | rest]) do
+    case parse_vars(rest) do
+      {:ok, names, rest2} -> {:ok, [name | names], rest2}
+      _ -> {:ok, [name], rest}
+    end
+  end
+  defp parse_vars(tokens), do: {:ok, [], tokens}
+
+  defp desugar_path_lam([], body), do: body
+  defp desugar_path_lam([v | rest], body) do
+    # EPLam (ELam (EI, (v, pLam e rest)))
+    %AST.PLam{expr: %AST.Lam{name: v, domain: %AST.Interval{}, body: desugar_path_lam(rest, body)}}
+  end
+
   defp mk_pi_tele([], type), do: type
   defp mk_pi_tele([param | rest], type) do
     case param do
       {name, ty} -> %AST.Pi{name: name, domain: ty, codomain: mk_pi_tele(rest, type)}
       %AST.Var{name: name} -> %AST.Pi{name: name, domain: %AST.Hole{}, codomain: mk_pi_tele(rest, type)}
+    end
+  end
+
+  defp mk_sigma_tele([], type), do: type
+  defp mk_sigma_tele([param | rest], type) do
+    case param do
+      {name, ty} -> %AST.Sigma{name: name, domain: ty, codomain: mk_sigma_tele(rest, type)}
+      %AST.Var{name: name} -> %AST.Sigma{name: name, domain: %AST.Hole{}, codomain: mk_sigma_tele(rest, type)}
     end
   end
 

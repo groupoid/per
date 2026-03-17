@@ -45,11 +45,17 @@ defmodule Per.Lexer do
   defp lex([?Σ | rest], line, col, acc), # Σ
     do: lex(rest, line, col + 1, [{:sigma_token, line, col} | acc])
 
+  defp lex([?∨ | rest], line, col, acc), # ∨
+    do: lex(rest, line, col + 1, [{:or_token, line, col} | acc])
+
   defp lex([?∧ | rest], line, col, acc), # ∧
     do: lex(rest, line, col + 1, [{:and_token, line, col} | acc])
 
-  defp lex([?∨ | rest], line, col, acc), # ∨
-    do: lex(rest, line, col + 1, [{:or_token, line, col} | acc])
+  defp lex([?× | rest], line, col, acc), # ×
+    do: lex(rest, line, col + 1, [{:prod_token, line, col} | acc])
+
+  defp lex([?* | rest], line, col, acc), # *
+    do: lex(rest, line, col + 1, [{:prod_token, line, col} | acc])
 
   # Numbers
   defp lex([?( | rest], line, col, acc),
@@ -183,9 +189,13 @@ defmodule Per.Lexer do
         ":=" -> {:defeq, line, col}
         ":" -> {:colon, line, col}
         "?" -> {:hole, line, col}
-        "@" -> {:appformula, line, col}
+        "@" -> {:at_sign, line, col}
         "/\\" -> {:and_token, line, col}
         "\\/" -> {:or_token, line, col}
+        "<" -> {:left_angle, line, col}
+        ">" -> {:right_angle, line, col}
+        "->" -> {:arrow, line, col}
+        "*" -> {:prod_token, line, col}
         _ -> {:operator, line, col, op}
       end
 

@@ -249,18 +249,12 @@ This is upheld by normalization and the absence of paradoxes such as Girard's [G
 ## Artefact
 
 ```
-https://per.groupoid.space/
+% mix per.repl
+🧊 Per Programming Language version 0.4.0 [Lean Syntax]
+Copyright (c) 2016-2026 Groupoid Infinity
+https://groupoid.github.io/per/
 
-  🧊 MLTT Theorem Prover version 0.5 (c) 2025 Groupoїd Infinity
-
-For help type `help`.
-
-Starting proof for: Π(n : Nat).Nat
-Goal 1:
-Context: []
-⊢ Π(n : Nat).Nat
-
-1 goals remaining
+per>
 >
 ```
 
