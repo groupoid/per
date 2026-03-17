@@ -1,2 +1,2 @@
 (env (dev (flags (:standard -warn-error -A))))
-(install (files lib/book.per) (section share) (package per))
+(install (files priv/per/book.per) (section share) (package per))

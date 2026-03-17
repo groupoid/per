@@ -47,13 +47,7 @@ defmodule Per.Codegen do
     if MapSet.member?(local_env, name) do
       # Sanitize variable name: must start with Uppercase ASCII
       # If first char is Unicode, prefix with 'X'
-      sanitized = 
-        if String.match?(String.at(name, 0), ~r/[a-zA-Z_]/) do
-          String.capitalize(name)
-        else
-          "V_" <> (Integer.to_string(String.to_charlist(name) |> hd(), 16))
-        end
-      {:var, 1, String.to_atom(sanitized)}
+      {:var, 1, sanitize_var(name)}
     else
       # Global call: check if it's local or remote
       case Map.get(env.name_to_mod, name) do
@@ -78,13 +72,19 @@ defmodule Per.Codegen do
   end
 
   defp generate_expr(%AST.Lam{name: x, body: body}, local_env, env, mod) do
-    erl_x = {:var, 1, String.capitalize(x) |> String.to_atom()}
+    erl_x = {:var, 1, sanitize_var(x)}
     new_local_env = MapSet.put(local_env, x)
 
     {:fun, 1,
      {:clauses, [{:clause, 1, [erl_x], [], [generate_expr(body, new_local_env, env, mod)]}]}}
   end
+  defp generate_expr(%AST.PLam{name: x, body: body}, local_env, env, mod) do
+    erl_x = {:var, 1, sanitize_var(x)}
+    new_local_env = MapSet.put(local_env, x)
 
+    {:fun, 1,
+     {:clauses, [{:clause, 1, [erl_x], [], [generate_expr(body, new_local_env, env, mod)]}]}}
+  end
   defp generate_expr(%AST.App{func: f, arg: arg}, local_env, env, mod) do
     # f arg -> f(arg)
     {:call, 1, generate_expr(f, local_env, env, mod), [generate_expr(arg, local_env, env, mod)]}
@@ -109,4 +109,12 @@ defmodule Per.Codegen do
   end
 
   defp generate_expr(_, _, _, _), do: {:atom, 1, :not_implemented_in_codegen}
+
+  defp sanitize_var(name) do
+    if String.match?(String.at(name, 0), ~r/[a-zA-Z_]/) do
+      String.capitalize(name) |> String.to_atom()
+    else
+      ("V_" <> (Integer.to_string(String.to_charlist(name) |> hd(), 16))) |> String.to_atom()
+    end
+  end
 end

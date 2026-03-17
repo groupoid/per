@@ -11,34 +11,17 @@ defmodule Mix.Tasks.Per.Repl do
             )
     env = %Typechecker.Env{}
 
-    # Auto-load all modules from priv/per and test/per
-    # and also Prelude if possible
+    # Auto-load foundations
+    foundations = ["mltt", "inductive", "univalent"]
     env =
-      case Per.Compiler.load_module_to_env("Prelude", env) do
-        {:ok, new_env} -> new_env
-        _ -> env
-      end
-
-    paths = Path.wildcard("{priv,test}/per/**/*.per")
-
-    env =
-      Enum.reduce(paths, env, fn path, acc_env ->
-        parts = Path.split(path)
-        mod_parts =
-          parts
-          |> Enum.drop_while(&(&1 != "per"))
-          |> Enum.drop(1)
-          |> List.update_at(-1, &Path.rootname/1)
-
-        mod_name = Enum.join(mod_parts, ".")
-
+      Enum.reduce(foundations, env, fn mod_name, acc_env ->
         case Per.Compiler.load_module_to_env(mod_name, acc_env) do
           {:ok, new_env} ->
             IO.puts("Loaded: #{mod_name}")
             new_env
 
           {:error, _err} ->
-            acc_env
+             acc_env
         end
       end)
 
@@ -91,14 +74,16 @@ defmodule Mix.Tasks.Per.Repl do
     if input == "" do
       {:error, :empty_input}
     else
-      with {:ok, tokens} <- Lexer.lex(input),
-           resolved <- Layout.resolve(tokens),
-           {:ok, expr, _} <- Parser.parse_expression(resolved) do
-        desugared = Desugar.desugar_expression(expr, env)
-        # Normalize
-        {:ok, Typechecker.normalize(env, desugared)}
-      else
-        err -> {:error, err}
+      case Lexer.lex(input) do
+        {:error, _} = err -> err
+        tokens ->
+          resolved = Layout.resolve(tokens)
+          case Parser.parse_expression(resolved) do
+            {:ok, expr, _} ->
+              desugared = Desugar.desugar_expression(expr, env)
+              {:ok, Typechecker.normalize(env, desugared)}
+            err -> {:error, err}
+          end
       end
     end
   end

@@ -85,8 +85,8 @@ defmodule Per.Desugar do
           right: desugar_expression(r, env, func_name)
         }
 
-      %AST.PLam{expr: e} ->
-        %AST.PLam{expr: desugar_expression(e, env, func_name)}
+      %AST.PLam{name: n, body: b} ->
+        %AST.PLam{name: n, body: desugar_expression(b, env, func_name)}
 
       %AST.PathP{path: p} ->
         %AST.PathP{path: desugar_expression(p, env, func_name)}

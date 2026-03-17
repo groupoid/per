@@ -9,6 +9,9 @@
 
 module homotopical where
 import inductive
+import univalent
+
+def idfun (A : U) : A → A := λ (x : A), x
 
 def ℕ-ctor := ind₂ (λ (f : 𝟐), U) 𝟎 𝟏
 def ℕ := W (x : 𝟐), ℕ-ctor x

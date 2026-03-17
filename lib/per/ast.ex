@@ -7,6 +7,10 @@ defmodule Per.AST do
 
   # --- Surface Language Declarations ---
 
+  defmodule Neutral do
+    defstruct [:term, :type]
+  end
+
   defmodule Module do
     defstruct [:name, :declarations]
   end
@@ -82,11 +86,11 @@ defmodule Per.AST do
   end
 
   defmodule PathP do
-    defstruct [:path]
+    defstruct [:path, :u0, :u1]
   end
 
   defmodule PLam do
-    defstruct [:expr]
+    defstruct [:name, :body]
   end
 
   defmodule AppFormula do
@@ -228,8 +232,10 @@ defmodule Per.AST do
       %Id{type: a} -> "Id #{to_string(a)}"
       %Refl{expr: e} -> "refl #{to_string(e)}"
 
-      %PathP{path: p} -> "PathP #{to_string(p)}"
-      %PLam{expr: e} -> "<_> #{to_string(e)}"
+      %PathP{path: p, u0: nil} -> "PathP #{to_string(p)}"
+      %PathP{path: p, u0: u0, u1: nil} -> "PathP #{to_string(p)} #{to_string(u0)}"
+      %PathP{path: p, u0: u0, u1: u1} -> "PathP #{to_string(p)} #{to_string(u0)} #{to_string(u1)}"
+      %PLam{name: x, body: b} -> "<#{x}> #{to_string(b)}"
 
       %Interval{} -> "I"
       %Dir{val: d} -> "#{d}"

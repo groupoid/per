@@ -8,7 +8,8 @@ defmodule Per.Compiler do
     tokens = Lexer.lex(source)
     with resolved <- Layout.resolve(tokens),
          {:ok, ast, _rest} <- Parser.parse(resolved) do
-      env = resolve_imports(ast, %Per.Typechecker.Env{}, opts)
+      initial_env = Keyword.get(opts, :env, %Per.Typechecker.Env{})
+      env = resolve_imports(ast, initial_env, opts)
       env = collect_local_names(ast, env)
       desugared = Desugar.desugar(ast, env)
       final_env = populate_local_env(desugared, env)
@@ -40,22 +41,23 @@ defmodule Per.Compiler do
 
   defp populate_local_env(%AST.Module{name: _mod_name, declarations: decls}, env) do
     Enum.reduce(decls, env, fn
-      %AST.DeclValue{name: name, type: ty, expr: expr}, acc ->
+      %AST.DeclValue{} = v, acc ->
+        desugared_v = Per.Desugar.desugar_decl(v, acc)
         eval_ty =
-          case ty do
+          case desugared_v.type do
             %AST.Hole{} ->
-              Per.Typechecker.infer(acc.ctx, expr)
+              Per.Typechecker.infer(acc.ctx, desugared_v.expr)
 
             _ ->
-              Per.Typechecker.eval(ty, acc.ctx)
+              Per.Typechecker.eval(desugared_v.type, acc.ctx)
           end
 
-        eval_val = Per.Typechecker.eval(expr, acc.ctx)
+        eval_val = Per.Typechecker.eval(desugared_v.expr, acc.ctx)
 
         %{
           acc
-          | defs: Map.put(acc.defs, name, eval_val),
-            ctx: Map.put(acc.ctx, name, {:global, eval_ty, {:value, eval_val}})
+          | defs: Map.put(acc.defs, desugared_v.name, eval_val),
+            ctx: Map.put(acc.ctx, desugared_v.name, {:global, eval_ty, {:value, eval_val}})
         }
 
       _, acc ->
@@ -90,9 +92,13 @@ defmodule Per.Compiler do
 
     Enum.reduce(decls, env, fn
       {:import, name}, acc ->
-        case load_module_to_env(name, acc, opts) do
-          {:ok, new_env} -> new_env
-          _ -> acc
+        if MapSet.member?(acc.files, name) do
+          acc
+        else
+          case load_module_to_env(name, acc, opts) do
+            {:ok, new_env} -> new_env
+            {:error, reason} -> raise "Failed to load module #{name}: #{inspect(reason)}"
+          end
         end
 
       _, acc ->
@@ -101,58 +107,30 @@ defmodule Per.Compiler do
   end
 
   def load_module_to_env(mod_name, env, opts \\ []) do
-    case find_module_path(mod_name) do
-      {:ok, path} ->
-        source = File.read!(path)
+    if MapSet.member?(env.files, mod_name) do
+      {:ok, env}
+    else
+      case find_module_path(mod_name) do
+        {:ok, path} ->
+          source = File.read!(path)
 
-        with {:ok, tokens} <- Lexer.lex(source),
-             resolved <- Layout.resolve(tokens),
-             {:ok, %AST.Module{} = mod, _} <- Parser.parse(resolved) do
-          # 1. Resolve imports of the sub-module first (recursive)
-          env_with_imports = resolve_imports(mod, env, opts)
+          with tokens <- Lexer.lex(source),
+               resolved <- Layout.resolve(tokens),
+               {:ok, %AST.Module{} = mod, _} <- Parser.parse(resolved) do
+            # 1. Resolve imports of the sub-module first (recursive)
+            env_with_imports = resolve_imports(mod, env, opts)
 
-          # 2. Add declarations of the current module to env
-          {new_defs, new_types, new_names, new_ctx} =
-            Enum.reduce(
-              mod.declarations,
-              {env_with_imports.defs, env_with_imports.env, env_with_imports.name_to_mod,
-               env_with_imports.ctx},
-              fn
-                %AST.DeclValue{} = v, {d_acc, t_acc, n_acc, c_acc} ->
-                  current_env = %{
-                    env_with_imports
-                    | defs: d_acc,
-                      env: t_acc,
-                      name_to_mod: n_acc,
-                      ctx: c_acc
-                  }
+            # 2. Add declarations of the current module to env
+            env_final = populate_local_env(mod, env_with_imports)
+            env_with_names = collect_local_names(mod, env_final)
+            {:ok, %{env_with_names | files: MapSet.put(env_with_names.files, mod_name)}}
+          else
+            err -> {:error, err}
+          end
 
-                  desugared_v = Desugar.desugar_decl(v, current_env)
-                  val_ty = Per.Typechecker.infer(current_env, desugared_v.expr)
-
-                  {Map.put(d_acc, desugared_v.name, desugared_v.expr), t_acc,
-                   Map.put(n_acc, desugared_v.name, mod_name),
-                   Map.put(c_acc, desugared_v.name, {:global, val_ty, {:value, desugared_v.expr}})}
-
-                _, acc ->
-                  acc
-              end
-            )
-
-          {:ok,
-           %{
-             env_with_imports
-             | defs: new_defs,
-               env: new_types,
-               name_to_mod: new_names,
-               ctx: new_ctx
-           }}
-        else
-          err -> {:error, err}
-        end
-
-      nil ->
-        {:error, :module_not_found}
+        nil ->
+          {:error, :module_not_found}
+      end
     end
   end
 
@@ -160,7 +138,7 @@ defmodule Per.Compiler do
     # Search in priv/per, test/per, and priv/foundations
     path1 = "priv/per/" <> String.replace(mod_name, ".", "/") <> ".per"
     path2 = "test/per/" <> String.replace(mod_name, ".", "/") <> ".per"
-    path3 = "priv/foundations/" <> String.replace(mod_name, ".", "/") <> ".per"
+    path3 = "priv/per/foundations/" <> String.replace(mod_name, ".", "/") <> ".per"
 
     cond do
       File.exists?(path1) -> {:ok, path1}

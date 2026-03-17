@@ -7,12 +7,17 @@ defmodule Mix.Tasks.Per.Test do
 
     test_files = Path.wildcard("test/per/**/*.per")
 
+    # Preload foundational modules
+    base_env = %Per.Typechecker.Env{}
+    {:ok, base_env} = Per.Compiler.load_module_to_env("mltt", base_env)
+    {:ok, base_env} = Per.Compiler.load_module_to_env("inductive", base_env)
+
     results =
       Enum.map(test_files, fn file ->
         IO.write("  Testing #{file}... ")
         source = File.read!(file)
 
-        case Per.Compiler.compile_module(source, source_path: file) do
+        case Per.Compiler.compile_module(source, source_path: file, env: base_env) do
           {:ok, mod, _bin} ->
             IO.puts("OK (#{mod})")
             :ok
