@@ -41,11 +41,21 @@ defmodule Per.Compiler do
   defp populate_local_env(%AST.Module{name: _mod_name, declarations: decls}, env) do
     Enum.reduce(decls, env, fn
       %AST.DeclValue{name: name, type: ty, expr: expr}, acc ->
-        eval_ty = Per.Typechecker.eval(ty, acc.ctx)
+        eval_ty =
+          case ty do
+            %AST.Hole{} ->
+              Per.Typechecker.infer(acc.ctx, expr)
+
+            _ ->
+              Per.Typechecker.eval(ty, acc.ctx)
+          end
+
         eval_val = Per.Typechecker.eval(expr, acc.ctx)
-        %{acc |
-          defs: Map.put(acc.defs, name, eval_val),
-          ctx: Map.put(acc.ctx, name, {:global, eval_ty, {:value, eval_val}})
+
+        %{
+          acc
+          | defs: Map.put(acc.defs, name, eval_val),
+            ctx: Map.put(acc.ctx, name, {:global, eval_ty, {:value, eval_val}})
         }
 
       _, acc ->

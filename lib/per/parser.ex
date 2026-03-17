@@ -111,7 +111,7 @@ defmodule Per.Parser do
   defp parse_val_decl([{:ident, _, _, name} | rest] = tokens) do
     case parse_params(rest, []) do
       {:ok, params, [{:colon, _, _} | rest2]} ->
-        case parse_type(rest2) do
+        case parse_expr(rest2) do
           {:ok, ty, [{:defeq, _, _} | rest3]} ->
              case parse_expr(rest3) do
                {:ok, expr, rest4} ->
@@ -137,7 +137,7 @@ defmodule Per.Parser do
   defp parse_axiom_decl([{:ident, _, _, name} | rest]) do
     case parse_params(rest, []) do
       {:ok, params, [{:colon, _, _} | rest2]} ->
-        case parse_type(rest2) do
+        case parse_expr(rest2) do
           {:ok, ty, rest3} ->
             full_ty = mk_pi_tele(params, ty)
             {:ok, %AST.DeclTypeSignature{name: name, type: full_ty}, rest3}
@@ -148,7 +148,7 @@ defmodule Per.Parser do
   end
 
   defp parse_type_sig([{:ident, _, _, name}, {:colon, _, _} | rest]) do
-    case parse_type(rest) do
+    case parse_expr(rest) do
       {:ok, ty, rest2} -> {:ok, %AST.DeclTypeSignature{name: name, type: ty}, rest2}
       err -> err
     end
@@ -168,7 +168,7 @@ defmodule Per.Parser do
   defp parse_lense([{:left_paren, _, _} | rest]) do
     case parse_vars(rest) do
       {:ok, vars, [{:colon, _, _} | rest2]} ->
-        case parse_type(rest2) do
+        case parse_expr(rest2) do
           {:ok, ty, [{:right_paren, _, _} | rest3]} ->
             {:ok, Enum.map(vars, fn v -> {v, ty} end), rest3}
           _ -> {:error, :invalid_lense_type}
@@ -181,75 +181,6 @@ defmodule Per.Parser do
     end
   end
 
-  defp parse_type(tokens) do
-    case parse_type_prod(tokens) do
-      {:ok, t, [{:arrow, _, _} | rest]} ->
-        case parse_type(rest) do
-          {:ok, t2, rest2} -> {:ok, %AST.Pi{name: "_", domain: t, codomain: t2}, rest2}
-          _ -> {:ok, t, rest}
-        end
-      res -> res
-    end
-  end
-
-  defp parse_type_prod(tokens) do
-    case parse_type_app(tokens) do
-      {:ok, t1, [{:operator, _, _, "*"} | rest]} -> # Using * for Sigma for now if tokens don't have sigma_token
-        case parse_type_prod(rest) do
-          {:ok, t2, rest2} -> {:ok, %AST.Sigma{name: "_", domain: t1, codomain: t2}, rest2}
-          _ -> {:ok, t1, rest}
-        end
-      {:ok, t1, [{:sigma_token, _, _} | rest]} ->
-         case parse_type_prod(rest) do
-           {:ok, t2, rest2} -> {:ok, %AST.Sigma{name: "_", domain: t1, codomain: t2}, rest2}
-           _ -> {:ok, t1, rest}
-         end
-      res -> res
-    end
-  end
-
-  defp parse_type_app(tokens) do
-    case parse_type_atom(tokens) do
-      {:ok, t, rest} -> parse_type_app_tail(t, rest)
-      err -> err
-    end
-  end
-
-  defp parse_type_app_tail(f, tokens) do
-    case parse_type_atom(tokens) do
-      {:ok, arg, rest} -> parse_type_app_tail(%AST.App{func: f, arg: arg}, rest)
-      _ -> {:ok, f, tokens}
-    end
-  end
-
-  defp parse_type_atom([{:ident, _, _, name} | rest]), do: {:ok, %AST.Var{name: name}, rest}
-  defp parse_type_atom([{:number, _, _, val} | rest]), do: {:ok, %AST.Universe{level: val}, rest}
-
-  defp parse_type_atom([{:left_paren, _, _}, {:ident, _, _, name}, {:colon, _, _} | rest]) do
-    case parse_type(rest) do
-      {:ok, t, [{:right_paren, _, _} | rest2]} ->
-        {:ok, {name, t}, rest2}
-      err -> err
-    end
-  end
-
-  defp parse_type_atom([{:left_paren, _, _} | rest] = tokens) do
-    case parse_expr(rest) do
-      {:ok, e, [{:right_paren, _, _} | rest2]} -> {:ok, e, rest2}
-      _ ->
-        case parse_expr_atom(tokens) do
-          {:ok, e, rest2} -> {:ok, e, rest2}
-          err -> err
-        end
-    end
-  end
-
-  defp parse_type_atom(tokens) do
-    case parse_expr_atom(tokens) do
-      {:ok, e, rest} -> {:ok, e, rest}
-      _ -> {:error, :no_type_atom, Enum.take(tokens, 5)}
-    end
-  end
 
   defp parse_expr(tokens), do: parse_expr_binder(tokens)
 

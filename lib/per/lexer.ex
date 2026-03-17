@@ -156,11 +156,8 @@ defmodule Per.Lexer do
             level = subscript_to_int(String.slice(ident, 1..-1//1))
             lex(rest2, line, col + String.length(ident), [{:number, line, col, level} | acc])
           true ->
-            if String.match?(ident, ~r/^\d+$/) do
-              lex(rest2, line, col + String.length(ident), [{:number, line, col, String.to_integer(ident)} | acc])
-            else
-              lex(rest2, line, col + String.length(ident), [{:ident, line, col, ident} | acc])
-            end
+            # Pure digits are identifiers in Per (e.g. 0 and 1 for dimensions)
+            lex(rest2, line, col + String.length(ident), [{:ident, line, col, ident} | acc])
         end
     end
   end

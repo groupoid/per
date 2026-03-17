@@ -35,27 +35,35 @@ defmodule Per.Typechecker do
   def imax(%AST.Universe{level: u}, %AST.Universe{level: v}), do: %AST.Universe{level: max(u, v)}
   def imax(u, v), do: raise "Expected Universes in imax, got: #{inspect(u)}, #{inspect(v)}"
 
-  def orFormula(%AST.Dir{val: 1}, _), do: %AST.Dir{val: 1}
-  def orFormula(_, %AST.Dir{val: 1}), do: %AST.Dir{val: 1}
-  def orFormula(%AST.Dir{val: 0}, f), do: f
-  def orFormula(f, %AST.Dir{val: 0}), do: f
-  def orFormula(%AST.Or{left: f, right: g}, h), do: orFormula(f, orFormula(g, h))
-  def orFormula(f, g), do: %AST.Or{left: f, right: g}
+  defp is0(v), do: match?(%AST.Dir{val: 0}, v) or match?(%AST.Universe{level: 0}, v)
+  defp is1(v), do: match?(%AST.Dir{val: 1}, v) or match?(%AST.Universe{level: 1}, v)
 
-  def andFormula(%AST.Dir{val: 0}, _), do: %AST.Dir{val: 0}
-  def andFormula(_, %AST.Dir{val: 0}), do: %AST.Dir{val: 0}
-  def andFormula(%AST.Dir{val: 1}, f), do: f
-  def andFormula(f, %AST.Dir{val: 1}), do: f
-  def andFormula(%AST.And{left: f, right: g}, h), do: andFormula(f, andFormula(g, h))
-  def andFormula(%AST.Or{left: f, right: g}, h), do: orFormula(andFormula(f, h), andFormula(g, h))
-  def andFormula(h, %AST.Or{left: f, right: g}), do: orFormula(andFormula(h, f), andFormula(h, g))
-  def andFormula(f, g), do: %AST.And{left: f, right: g}
+  def orFormula(v1, v2) do
+    cond do
+      is1(v1) or is1(v2) -> %AST.Dir{val: 1}
+      is0(v1) -> v2
+      is0(v2) -> v1
+      true -> %AST.Or{left: v1, right: v2}
+    end
+  end
 
-  def negFormula(%AST.Dir{val: d}), do: %AST.Dir{val: 1 - d}
-  def negFormula(%AST.Neg{expr: n}), do: n
-  def negFormula(%AST.And{left: f, right: g}), do: orFormula(negFormula(f), negFormula(g))
-  def negFormula(%AST.Or{left: f, right: g}), do: andFormula(negFormula(f), negFormula(g))
-  def negFormula(v), do: %AST.Neg{expr: v}
+  def andFormula(v1, v2) do
+    cond do
+      is0(v1) or is0(v2) -> %AST.Dir{val: 0}
+      is1(v1) -> v2
+      is1(v2) -> v1
+      true -> %AST.And{left: v1, right: v2}
+    end
+  end
+
+  def negFormula(v) do
+    cond do
+      is0(v) -> %AST.Dir{val: 1}
+      is1(v) -> %AST.Dir{val: 0}
+      match?(%AST.Neg{expr: n}, v) -> n
+      true -> %AST.Neg{expr: v}
+    end
+  end
 
   def vfst(%AST.Pair{first: u}), do: u
   def vfst(v), do: %AST.Fst{expr: v}
@@ -135,19 +143,29 @@ defmodule Per.Typechecker do
   end
 
   defp lookup(ctx, x) do
-    case Map.get(ctx, x) do
-      {:local, t, _v} -> t
-      {:global, val_t, _} -> val_t
-      nil -> raise "Variable not found: #{x}"
+    case x do
+      "0" -> %AST.Universe{level: 1} # Level of 0 is 1? Or 0 is its own type?
+      "1" -> %AST.Universe{level: 1}
+      _ ->
+        case Map.get(ctx, x) do
+          {:local, t, _v} -> t
+          {:global, val_t, _} -> val_t
+          nil -> raise "Variable not found: #{x}"
+        end
     end
   end
 
   defp getRho(ctx, x) do
-    case Map.get(ctx, x) do
-      {:local, _t, v} -> v
-      {:global, _val_t, {:value, v}} -> v
-      {:global, _val_t, {:exp, e}} -> eval(e, ctx)
-      nil -> %AST.Var{name: x}
+    case x do
+      "0" -> %AST.Universe{level: 0}
+      "1" -> %AST.Universe{level: 1}
+      _ ->
+        case Map.get(ctx, x) do
+          {:local, _t, v} -> v
+          {:global, _val_t, {:value, v}} -> v
+          {:global, _val_t, {:exp, e}} -> eval(e, ctx)
+          nil -> %AST.Var{name: x}
+        end
     end
   end
 
@@ -210,6 +228,8 @@ defmodule Per.Typechecker do
       # --- End of Extensions ---
 
 
+      %AST.Transp{path: p, phi: phi} -> transport(p, phi, x)
+      %AST.HComp{type: t, phi: r, u: u} -> hcomp(t, r, u, x)
       _ -> %AST.App{func: f, arg: x}
     end
   end
@@ -317,7 +337,7 @@ defmodule Per.Typechecker do
   def transport(p, phi, u0) do
     {_i, _x, v} = freshDim()
     case {appFormula(p, v), phi} do
-      {_, %AST.Dir{val: 1}} -> u0
+      {_, phi_val} when is1(phi_val) -> u0
       {%AST.Universe{}, _} -> u0
 
       # Pi case: transp (<i> Π (x : A i), B i x) φ u₀ ~> λ (x : A 1), transp (<i> B i (transFill (<j> A -j) φ x i)) φ (u₀ (transFill (<j> A -j) φ x 1))
@@ -489,6 +509,47 @@ defmodule Per.Typechecker do
 
         infer_ind_w(t, eval(b, ctx), eval(c, ctx))
 
+
+      %AST.Transp{path: p, phi: i} ->
+        _ty_p = infer(ctx, p) # Should be Interval -> U
+        _ty_i = infer(ctx, i) # Should be Interval
+        p_val = eval(p, ctx)
+        i_val = eval(i, ctx)
+        implv(appFormula(p_val, %AST.Dir{val: 0}), appFormula(p_val, %AST.Dir{val: 1})) # Simplified transp type
+
+      %AST.PathP{path: p} ->
+        _ty_p = infer(ctx, p) # Interval -> U
+        eval_p = eval(p, ctx)
+        %AST.Pi{name: "u0", domain: appFormula(eval_p, %AST.Dir{val: 0}), codomain: fn u0 ->
+          %AST.Pi{name: "u1", domain: appFormula(eval_p, %AST.Dir{val: 1}), codomain: fn _u1 ->
+            %AST.Universe{level: 0} # Path type is in U
+          end}
+        end}
+
+      %AST.AppFormula{left: e, right: i} ->
+        case infer(ctx, e) do
+          %AST.App{func: %AST.App{func: %AST.PathP{path: p}, arg: _u0}, arg: _u1} ->
+            appFormula(p, eval(i, ctx))
+          _ -> raise "Expected PathP application, got: #{inspect(e)}"
+        end
+
+      %AST.PLam{expr: body} ->
+        # Highly simplified. In OCaml model, this involves fresh dimensions.
+        %AST.App{func: %AST.App{func: %AST.PathP{path: %AST.PLam{expr: body}}, arg: %AST.Hole{}}, arg: %AST.Hole{}}
+
+      %AST.Interval{} -> %AST.Universe{level: 0} # Interval is like a type
+
+      %AST.Dir{} -> %AST.Interval{}
+
+      %AST.Id{type: a} ->
+        _ = extSet(infer(ctx, a))
+        eval_a = eval(a, ctx)
+        implv(eval_a, implv(eval_a, %AST.Universe{level: 0}))
+
+      %AST.Refl{expr: e} ->
+        t = infer(ctx, e)
+        # Id t e e
+        app(app(%AST.Id{type: t}, eval(e, ctx)), eval(e, ctx))
 
       _ -> raise "Inference not implemented for: #{inspect(e)}"
     end
