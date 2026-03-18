@@ -1,6 +1,9 @@
 Per Martin-Löf: Intuitionistic Type Theory
 ==========================================
 
+[![Actions Status](https://github.com/groupoid/per/workflows/ci/badge.svg)](https://github.com/groupoid/per/actions)
+[![Hex pm](http://img.shields.io/hexpm/v/per.svg?style=flat)](https://hex.pm/packages/per)
+
 <img src="https://per.groupoid.space/img/per.jpg?v=1" height=400>
 
 ## Abstract
