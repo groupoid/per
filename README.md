@@ -33,12 +33,17 @@ with definitional equality `Γ ⊢ t = t'` implemented via `equal`.
 ## Syntax
 
 ```OCaml
-type term =
-  | Var of name | Universe of level
-  | Pi of name * term * term | Lam of name * term * term | App of term * term
-  | Sigma of name * term * term | Pair of term * term | Fst of term | Snd of term
-  | Id of term * term * term | Refl of term
-  | J of term * term * term * term * term * term  (* J A a b C d p *)
+type exp =
+  | EKan of Z.t
+  | EVar of ident | EHole
+  | EPi of exp * (ident * exp) | ELam of exp * (ident * exp) | EApp of exp * exp
+  | ESig of exp * (ident * exp) | EPair of tag * exp * exp
+  | EFst of exp | ESnd of exp | EField of exp * string
+  | EId of exp | ERef of exp | EJ of exp
+  | EEmpty | EIndEmpty of exp
+  | EUnit | EStar | EIndUnit of exp
+  | EBool | EFalse | ETrue | EIndBool of exp
+  | EW of exp * (ident * exp) | ESup of exp * exp | EIndW of exp * exp * exp
 ```
 
 ## Semantics
