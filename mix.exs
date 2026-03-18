@@ -4,20 +4,31 @@ defmodule Per.MixProject do
   def project do
     [
       app: :per,
-      version: "5.3.17",
-      elixir: "~> 1.14",
-      start_permanent: Mix.env() == :prod,
-      deps: deps()
+      version: "5.3.15",
+      description: "The Per Programming Language",
+      deps: deps(),
+      package: package()
     ]
   end
 
   def application do
+    [ extra_applications: [ :logger ] ]
+  end
+
+  def deps do
     [
-      extra_applications: [:logger]
+      {:ex_doc, ">= 0.0.0", only: :dev}
     ]
   end
 
-  defp deps do
-    []
+  def package() do
+    [
+      files: ["lib", "priv", "src", "test", "LICENSE", "README.md"],
+      licenses: ["ISC"],
+      maintainers: ["Namdak Tonpa"],
+      name: :per,
+      links: %{"GitHub" => "https://github.com/groupoid/per"}
+    ]
   end
+
 end
