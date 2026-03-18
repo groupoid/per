@@ -2,6 +2,7 @@ Makefile linguist-detectable=false
 *.mll linguist-language=OCaml
 *.mly linguist-language=OCaml
 *.ml linguist-language=OCaml
+*.per linguist-language=Lean
 *.js linguist-detectable=false
 *.css linguist-detectable=false
 *.rust linguist-detectable=false
