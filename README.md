@@ -34,16 +34,16 @@ with definitional equality `Γ ⊢ t = t'` implemented via `equal`.
 
 ```OCaml
 type exp =
-  | EKan of Z.t                                                                        (* cosmos *)
-  | EVar of ident | EHole                                                           (* variables *)
-  | EPi of exp * (ident * exp) | ELam of exp * (ident * exp) | EApp of exp * exp           (* pi *)
-  | ESig of exp * (ident * exp) | EPair of tag * exp * exp                              (* sigma *)
-  | EFst of exp | ESnd of exp | EField of exp * string                                  (* sigma *)
-  | EId of exp | ERef of exp | EJ of exp                                      (* strict equality *)
-  | EEmpty | EIndEmpty of exp                                                               (* 𝟎 *)
-  | EUnit | EStar | EIndUnit of exp                                                         (* 𝟏 *)
-  | EBool | EFalse | ETrue | EIndBool of exp                                                (* 𝟐 *)
-  | EW of exp * (ident * exp) | ESup of exp * exp | EIndW of exp * exp * exp                (* W *)
+  | EKan of Z.t
+  | EVar of ident | EHole
+  | EPi of exp * (ident * exp) | ELam of exp * (ident * exp) | EApp of exp * exp
+  | ESig of exp * (ident * exp) | EPair of tag * exp * exp
+  | EFst of exp | ESnd of exp | EField of exp * string
+  | EId of exp | ERef of exp | EJ of exp
+  | EEmpty | EIndEmpty of exp
+  | EUnit | EStar | EIndUnit of exp
+  | EBool | EFalse | ETrue | EIndBool of exp
+  | EW of exp * (ident * exp) | ESup of exp * exp | EIndW of exp * exp * exp
 ```
 
 ## Semantics
