@@ -2,12 +2,22 @@ defmodule Per.Compiler do
   @moduledoc """
   Main entry point for the Per compiler.
   """
-  alias Per.{Lexer, Layout, Parser, Desugar, Codegen, AST}
+  alias Per.{Layout, Desugar, Codegen, AST}
 
   def compile_module(source, opts \\ []) do
-    tokens = Lexer.lex(source)
+    syntax = Keyword.get(opts, :syntax, :lean)
+    lexer = case syntax do
+      :agda -> Per.Lexer.Agda
+      _ -> Per.Lexer
+    end
+    parser = case syntax do
+      :agda -> Per.Parser.Agda
+      _ -> Per.Parser
+    end
+
+    tokens = lexer.lex(source)
     with resolved <- Layout.resolve(tokens),
-         {:ok, ast, _rest} <- Parser.parse(resolved) do
+         {:ok, ast, _rest} <- parser.parse(resolved) do
       initial_env = Keyword.get(opts, :env, %Per.Typechecker.Env{})
       env = resolve_imports(ast, initial_env, opts)
       env = collect_local_names(ast, env)
@@ -110,13 +120,23 @@ defmodule Per.Compiler do
     if MapSet.member?(env.files, mod_name) do
       {:ok, env}
     else
-      case find_module_path(mod_name) do
+      syntax = Keyword.get(opts, :syntax, :lean)
+      lexer = case syntax do
+        :agda -> Per.Lexer.Agda
+        _ -> Per.Lexer
+      end
+      parser = case syntax do
+        :agda -> Per.Parser.Agda
+        _ -> Per.Parser
+      end
+
+      case find_module_path(mod_name, syntax) do
         {:ok, path} ->
           source = File.read!(path)
 
-          with tokens <- Lexer.lex(source),
+          with tokens <- lexer.lex(source),
                resolved <- Layout.resolve(tokens),
-               {:ok, %AST.Module{} = mod, _} <- Parser.parse(resolved) do
+               {:ok, %AST.Module{} = mod, _} <- parser.parse(resolved) do
             # 1. Resolve imports of the sub-module first (recursive)
             env_with_imports = resolve_imports(mod, env, opts)
 
@@ -134,16 +154,24 @@ defmodule Per.Compiler do
     end
   end
 
-  def find_module_path(mod_name) do
+  def find_module_path(mod_name, syntax \\ :lean) do
     # Search in priv/per, test/per, and priv/foundations
-    path1 = "priv/per/" <> String.replace(mod_name, ".", "/") <> ".per"
-    path2 = "test/per/" <> String.replace(mod_name, ".", "/") <> ".per"
-    path3 = "priv/per/foundations/" <> String.replace(mod_name, ".", "/") <> ".per"
+    base_dir = if syntax == :agda, do: "priv/agda/", else: "priv/per/"
+    test_dir = if syntax == :agda, do: "test/agda/", else: "test/per/"
+    
+    path1 = base_dir <> String.replace(mod_name, ".", "/") <> ".per"
+    path2 = test_dir <> String.replace(mod_name, ".", "/") <> ".per"
+    path3 = base_dir <> "foundations/" <> String.replace(mod_name, ".", "/") <> ".per"
+    
+    path4 = base_dir <> String.replace(mod_name, ".", "/") <> ".agda"
+    path5 = base_dir <> "foundations/" <> String.replace(mod_name, ".", "/") <> ".agda"
 
     cond do
       File.exists?(path1) -> {:ok, path1}
       File.exists?(path2) -> {:ok, path2}
       File.exists?(path3) -> {:ok, path3}
+      File.exists?(path4) -> {:ok, path4}
+      File.exists?(path5) -> {:ok, path5}
       true -> nil
     end
   end
@@ -151,4 +179,5 @@ defmodule Per.Compiler do
   def load_module(mod, bin) do
     :code.load_binary(mod, ~c"#{mod}.beam", bin)
   end
+
 end

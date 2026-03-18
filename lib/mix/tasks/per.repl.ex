@@ -1,21 +1,22 @@
 defmodule Mix.Tasks.Per.Repl do
   use Mix.Task
 
-  alias Per.{Lexer, Layout, Parser, Desugar, Typechecker, AST}
+  alias Per.{Layout, Desugar, Typechecker, AST}
 
   @shortdoc "Per interactive REPL"
   def run(_) do
-    IO.puts("🧊 Per Programming Language version 0.4.0 [Lean Syntax]\n" <>
+    IO.puts("🧊 Per Programming Language version 0.4.0\n" <>
             "Copyright (c) 2016-2026 Groupoid Infinity\n" <>
             "https://groupoid.github.io/per/\n"
             )
     env = %Typechecker.Env{}
+    syntax = :lean
 
     # Auto-load foundations
     foundations = ["mltt", "inductive", "univalent", "homotopical"]
     env =
       Enum.reduce(foundations, env, fn mod_name, acc_env ->
-        case Per.Compiler.load_module_to_env(mod_name, acc_env) do
+        case Per.Compiler.load_module_to_env(mod_name, acc_env, [syntax: syntax]) do
           {:ok, new_env} ->
             IO.puts("Loaded: #{mod_name}")
             new_env
@@ -25,56 +26,65 @@ defmodule Mix.Tasks.Per.Repl do
         end
       end)
 
-    loop(env, "Lean")
+    loop(env, syntax)
   end
 
-  defp loop(env, syntax_name) do
-    input = IO.gets("per> ")
+  defp loop(env, syntax) do
+    syntax_name = if syntax == :agda, do: "Agda", else: "Lean"
+    input = IO.gets("per [#{syntax_name}]> ")
 
     case input do
       nil -> :ok
       ":q\n" -> :ok
-      "\n" -> loop(env, syntax_name)
+      "\n" -> loop(env, syntax)
+
+      ":syntax agda\n" ->
+        IO.puts("Switched to Agda syntax")
+        loop(env, :agda)
+
+      ":syntax lean\n" ->
+        IO.puts("Switched to Lean syntax")
+        loop(env, :lean)
 
       ":check " <> rest ->
-        handle_introspection(String.trim(rest), :check, env)
-        loop(env, syntax_name)
+        handle_introspection(String.trim(rest), :check, env, syntax)
+        loop(env, syntax)
 
       ":eval " <> rest ->
-        handle_introspection(String.trim(rest), :eval, env)
-        loop(env, syntax_name)
+        handle_introspection(String.trim(rest), :eval, env, syntax)
+        loop(env, syntax)
 
       ":print " <> rest ->
-        handle_introspection(String.trim(rest), :print, env)
-        loop(env, syntax_name)
+        handle_introspection(String.trim(rest), :print, env, syntax)
+        loop(env, syntax)
 
       "import " <> rest ->
         mod_name = String.trim(rest)
-        case Per.Compiler.load_module_to_env(mod_name, env) do
+        case Per.Compiler.load_module_to_env(mod_name, env, [syntax: syntax]) do
           {:ok, new_env} ->
             IO.puts("Loaded: #{mod_name}")
-            loop(new_env, syntax_name)
+            loop(new_env, syntax)
 
           {:error, err} ->
             IO.puts("Error: #{inspect(err)}")
-            loop(env, syntax_name)
+            loop(env, syntax)
         end
 
       _ ->
-        case eval(input, env) do
+        case eval(input, env, syntax) do
           {:ok, result} ->
             IO.puts("Result: #{AST.to_string(result)}")
-            loop(env, syntax_name)
+            loop(env, syntax)
 
           {:error, err} ->
             IO.puts("Error: #{inspect(err)}")
-            loop(env, syntax_name)
+            loop(env, syntax)
         end
     end
   end
 
-  defp handle_introspection(input, mode, env) do
-    case parse_and_desugar(input, env) do
+  defp handle_introspection(input, mode, env, syntax) do
+    case parse_and_desugar(input, env, syntax) do
       {:ok, term} ->
         # For :check and :eval, we need the type
         case mode do
@@ -96,7 +106,7 @@ defmodule Mix.Tasks.Per.Repl do
               e -> IO.puts("Error: #{inspect(e)}")
             end
 
-          :print ->
+           :print ->
             try do
               ty = Typechecker.infer(env.ctx, term)
               IO.puts("TYPE: #{AST.to_string(Typechecker.readback(ty))}")
@@ -111,16 +121,19 @@ defmodule Mix.Tasks.Per.Repl do
     end
   end
 
-  defp parse_and_desugar(input, env) do
+  defp parse_and_desugar(input, env, syntax) do
     input = String.trim(input)
     if input == "" do
       {:error, :empty_input}
     else
-      case Lexer.lex(input) do
+      lexer = if syntax == :agda, do: Per.Lexer.Agda, else: Per.Lexer
+      parser = if syntax == :agda, do: Per.Parser.Agda, else: Per.Parser
+
+      case lexer.lex(input) do
         {:error, _} = err -> err
         tokens ->
           resolved = Layout.resolve(tokens)
-          case Parser.parse_expression(resolved) do
+          case parser.parse_expression(resolved) do
             {:ok, expr, _} ->
               {:ok, Desugar.desugar_expression(expr, env)}
             err -> {:error, err}
@@ -129,10 +142,11 @@ defmodule Mix.Tasks.Per.Repl do
     end
   end
 
-  defp eval(input, env) do
-    case parse_and_desugar(input, env) do
+  defp eval(input, env, syntax) do
+    case parse_and_desugar(input, env, syntax) do
       {:ok, term} -> {:ok, Typechecker.normalize(env, term)}
       err -> err
     end
   end
+
 end
