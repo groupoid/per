@@ -578,6 +578,8 @@ and infer ctx e : value = match e with
   | EField (e, p) -> inferField ctx p e
   | EPre u -> VPre (Z.succ u)
   | EPathP p -> inferPath ctx p
+  | EPLam p -> inferV (eval (EPLam p) ctx)
+  | EPair (_, e1, e2) -> let t1 = infer ctx e1 in let t2 = infer ctx e2 in VSig (t1, (Irrefutable, fun _ -> t2))
   | EPartial e -> let n = extSet (infer ctx e) in implv VI (VPre n)
   | EPartialP (u, r0) -> check ctx r0 VI; let t = infer ctx u in
   begin match t with
