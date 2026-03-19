@@ -2,7 +2,7 @@ module inductive where
 
 option irrelevance true
 
-def ¬ (A : U) := A → 𝟎
+def ¬ (A : U) : U := A → 𝟎
 def ∘ᵀ (A B C: U) : U := (B → C) → (A → B) → (A → C)
 def ∘ (A B C : U) : ∘ᵀ A B C := λ (g : B → C) (f : A → B) (x : A), g (f x)
 def idᵀ (A : U) : U := A → A
