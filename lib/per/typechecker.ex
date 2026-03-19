@@ -345,8 +345,24 @@ defmodule Per.Typechecker do
 
   # --- Conversion ---
 
+  def inferV(v) do
+     try do
+       infer(%{}, v)
+     rescue
+       _ -> %AST.Hole{}
+     end
+  end
+
+  def convInd(v1, v2) do
+    case {inferV(v1), inferV(v2)} do
+      {%AST.Unit{}, %AST.Unit{}} -> true
+      {%AST.Empty{}, %AST.Empty{}} -> true
+      _ -> false
+    end
+  end
+
   def conv(v1, v2) do
-    if v1 == v2 do
+    if v1 == v2 or convInd(v1, v2) do
       true
     else
       conv_match(v1, v2)

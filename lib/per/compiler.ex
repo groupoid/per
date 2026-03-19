@@ -172,6 +172,8 @@ defmodule Per.Compiler do
     path6 = test_dir <> String.replace(mod_name, ".", "/") <> ".agda"
 
     cond do
+      File.exists?(mod_name <> ".per") -> {:ok, mod_name <> ".per"}
+      File.exists?(mod_name <> ".agda") -> {:ok, mod_name <> ".agda"}
       File.exists?(path1) -> {:ok, path1}
       File.exists?(path2) -> {:ok, path2}
       File.exists?(path3) -> {:ok, path3}

@@ -14,8 +14,14 @@ defmodule Mix.Tasks.Per.Test do
 
     # Preload foundational modules
     base_env = %Per.Typechecker.Env{}
-    {:ok, base_env} = Per.Compiler.load_module_to_env("mltt", base_env, [syntax: syntax])
-    {:ok, base_env} = Per.Compiler.load_module_to_env("inductive", base_env, [syntax: syntax])
+    base_env = case Per.Compiler.load_module_to_env("mltt", base_env, [syntax: syntax]) do
+      {:ok, e} -> e
+      err -> IO.puts("FAILED to load mltt: #{inspect(err)}"); base_env
+    end
+    base_env = case Per.Compiler.load_module_to_env("inductive", base_env, [syntax: syntax]) do
+      {:ok, e} -> e
+      err -> IO.puts("FAILED to load inductive: #{inspect(err)}"); base_env
+    end
 
     results =
       Enum.map(test_files, fn file ->

@@ -59,6 +59,14 @@ defmodule Per.Parser do
     parse_module_name_tail(rest, acc <> "." <> next)
   end
 
+  defp parse_module_name_tail([{:operator, _, _, "/"}, {:ident, _, _, next} | rest], acc) do
+    parse_module_name_tail(rest, acc <> "/" <> next)
+  end
+
+  defp parse_module_name_tail([{:operator, _, _, "/"} | rest], acc) do
+    parse_module_name_tail(rest, acc <> "/")
+  end
+
   defp parse_module_name_tail(rest, acc), do: {:ok, acc, rest}
 
   defp parse_decls([], acc), do: {:ok, Enum.reverse(acc), []}
@@ -448,6 +456,7 @@ defmodule Per.Parser do
       {:ident, _, _, "0"} -> {:ok, %AST.Dir{val: 0}, rest}
       {:ident, _, _, "1"} -> {:ok, %AST.Dir{val: 1}, rest}
       {:ident, _, _, name} -> {:ok, %AST.Var{name: name}, rest}
+      {:operator, _, _, name} -> {:ok, %AST.Var{name: name}, rest}
       {:universe_token, _, _, val} -> {:ok, %AST.Universe{level: val}, rest}
       {:number, _, _, val} -> {:ok, %AST.Universe{level: val}, rest}
       {:hole, _, _} -> {:ok, %AST.Hole{}, rest}
@@ -498,24 +507,28 @@ defmodule Per.Parser do
   end
 
   defp parse_system(tokens, acc) do
-     case parse_face(tokens) do
-       {:ok, face, [{:arrow, _, _} | rest]} ->
-         case parse_expr(rest) do
-           {:ok, e, rest2} ->
-             case rest2 do
-               [{:comma, _, _} | rest3] -> parse_system(rest3, [{face, e} | acc])
-               _ -> {:ok, Enum.reverse([{face, e} | acc]), rest2}
+     case tokens do
+       [{:right_square, _, _} | _] -> {:ok, Enum.reverse(acc), tokens}
+       _ ->
+         case parse_face(tokens) do
+           {:ok, face, [{:arrow, _, _} | rest]} ->
+             case parse_expr(rest) do
+               {:ok, e, rest2} ->
+                 case rest2 do
+                   [{:comma, _, _} | rest3] -> parse_system(rest3, [{face, e} | acc])
+                   _ -> {:ok, Enum.reverse([{face, e} | acc]), rest2}
+                 end
+               err -> err
              end
-           err -> err
+           _ -> {:ok, Enum.reverse(acc), tokens}
          end
-       _ -> {:ok, Enum.reverse(acc), tokens}
      end
   end
 
   defp parse_face(tokens) do
     case tokens do
       [{:left_paren, _, _}, {:ident, _, _, p}, divider, {:number, _, _, d}, {:right_paren, _, _} | rest]
-      when elem(divider, 0) == := ->
+      when (elem(divider, 0) == :defeq) or (elem(divider, 0) == :=) or (elem(divider, 0) == :operator and elem(divider, 3) == "=") ->
         {:ok, {p, d}, rest}
       _ -> {:error, :invalid_face}
     end
