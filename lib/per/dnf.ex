@@ -27,14 +27,12 @@ defmodule Per.DNF do
     end
   end
 
-  defp primitive(v) do
+  defp atom(v) do
     case v do
-      %Per.AST.Var{name: n} -> primitive(n)
-      %Per.AST.Neutral{term: t} -> primitive(t)
+      %Per.AST.Var{name: n} -> atom(n)
+      %Per.AST.Neutral{term: t} -> atom(t)
       n when is_binary(n) -> n
-      _ -> 
-        n = "p#{System.unique_integer([:positive])}"
-        n
+      _ -> v
     end
   end
 
@@ -49,10 +47,10 @@ defmodule Per.DNF do
         %Per.AST.Neg{expr: %Per.AST.And{}} -> ext_and(v)
         %Per.AST.Neg{expr: %Per.AST.Or{}} -> ext_and(v)
         %Per.AST.Neg{expr: %Per.AST.Neutral{term: t}} -> ext_or(%Per.AST.Neg{expr: t})
-        %Per.AST.Neg{expr: %Per.AST.Var{name: name}} -> MapSet.new([Map.new([{primitive(name), 0}])])
+        %Per.AST.Neg{expr: %Per.AST.Var{name: name}} -> MapSet.new([Map.new([{atom(name), 0}])])
         %Per.AST.Neutral{term: t} -> ext_or(t)
-        %Per.AST.Var{name: name} -> MapSet.new([Map.new([{primitive(name), 1}])])
-        _ -> MapSet.new([Map.new([{primitive(v), 1}])])
+        %Per.AST.Var{name: name} -> MapSet.new([Map.new([{atom(name), 1}])])
+        _ -> MapSet.new([Map.new([{atom(v), 1}])])
       end
     end)
   end
@@ -99,7 +97,7 @@ defmodule Per.DNF do
   def neg_conjunction(c) do
     c
     |> Enum.map(fn {x, d} -> 
-       %{primitive(x) => 1 - d}
+       %{atom(x) => 1 - d}
     end)
     |> MapSet.new()
   end
@@ -110,8 +108,8 @@ defmodule Per.DNF do
     end)
   end
 
-  def contr_atom({atom, 0}), do: %Per.AST.Neg{expr: %Per.AST.Var{name: primitive(atom)}}
-  def contr_atom({atom, 1}), do: %Per.AST.Var{name: primitive(atom)}
+  def contr_atom({atom, 0}), do: %Per.AST.Neg{expr: %Per.AST.Var{name: atom(atom)}}
+  def contr_atom({atom, 1}), do: %Per.AST.Var{name: atom(atom)}
 
   def contr_and(t) do
     Enum.reduce(t, %Per.AST.Dir{val: 1}, fn e, acc ->
@@ -143,7 +141,7 @@ defmodule Per.DNF do
 
   def getFaceV(face) do
     Enum.reduce(face, %Per.AST.Dir{val: 1}, fn {name, val}, acc ->
-      atom = %Per.AST.Var{name: primitive(name)}
+      atom = %Per.AST.Var{name: atom(name)}
       term = if val == 1, do: atom, else: %Per.AST.Neg{expr: atom}
       eval_and(acc, term)
     end)
