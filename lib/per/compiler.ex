@@ -169,6 +169,7 @@ defmodule Per.Compiler do
     
     path4 = base_dir <> String.replace(mod_name, ".", "/") <> ".agda"
     path5 = base_dir <> "foundations/" <> String.replace(mod_name, ".", "/") <> ".agda"
+    path6 = test_dir <> String.replace(mod_name, ".", "/") <> ".agda"
 
     cond do
       File.exists?(path1) -> {:ok, path1}
@@ -176,8 +177,10 @@ defmodule Per.Compiler do
       File.exists?(path3) -> {:ok, path3}
       File.exists?(path4) -> {:ok, path4}
       File.exists?(path5) -> {:ok, path5}
+      File.exists?(path6) -> {:ok, path6}
       true -> nil
     end
+
   end
 
   def load_module(mod, bin) do

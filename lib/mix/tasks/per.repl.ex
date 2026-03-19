@@ -4,13 +4,19 @@ defmodule Mix.Tasks.Per.Repl do
   alias Per.{Layout, Desugar, Typechecker, AST}
 
   @shortdoc "Per interactive REPL"
-  def run(_) do
+  def run(args) do
+    {opts, _, _} = OptionParser.parse(args, switches: [syntax: :string])
+    syntax = case Keyword.get(opts, :syntax) do
+      "agda" -> :agda
+      _ -> :lean
+    end
+
     IO.puts("🧊 Per Programming Language version 0.4.0\n" <>
             "Copyright (c) 2016-2026 Groupoid Infinity\n" <>
             "https://groupoid.github.io/per/\n"
             )
     env = %Typechecker.Env{}
-    syntax = :lean
+
 
     # Auto-load foundations
     foundations = ["mltt", "inductive", "univalent", "homotopical"]
