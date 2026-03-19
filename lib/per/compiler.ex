@@ -27,6 +27,7 @@ defmodule Per.Compiler do
       env = collect_local_names(ast, env)
       desugared = Desugar.desugar(ast, env)
       final_env = populate_local_env(desugared, env)
+      if desugared.name == "constcubes", do: IO.inspect(Map.keys(final_env.ctx), label: "FINAL ENV KEYS FOR constcubes")
       typecheck_res =
         if Keyword.get(opts, :typecheck, true) do
           case Per.Typechecker.check_module(desugared, final_env) do

@@ -41,94 +41,12 @@ defmodule Per.Typechecker do
     %AST.Universe{level: max(lu, lv)}
   end
 
-  defp is0(v), do: match?(%AST.Dir{val: 0}, v) or match?(%AST.Universe{level: 0}, v)
-  defp is1(v), do: match?(%AST.Dir{val: 1}, v) or match?(%AST.Universe{level: 1}, v)
+  defp is0(v), do: match?(%AST.Dir{val: 0}, v)
+  defp is1(v), do: match?(%AST.Dir{val: 1}, v)
 
-  def evalOr(v1, v2) do
-    clauses = (flatten_or(v1) ++ flatten_or(v2))
-      |> Enum.map(&flatten_and/1)
-      |> Enum.map(fn conj -> Enum.reject(conj, &is1/1) |> Enum.uniq() |> Enum.sort() end)
-      |> Enum.reject(fn conj -> Enum.any?(conj, &is0/1) end)
-      |> Enum.uniq()
-
-    # Absorption: remove conj if another k is a subset of conj
-    clauses = remove_absorbed_dnf(clauses)
-
-    cond do
-      Enum.any?(clauses, fn conj -> conj == [] end) -> %AST.Dir{val: 1} # empty conjunction is true
-      clauses == [] -> %AST.Dir{val: 0}
-      true -> build_dnf(clauses)
-    end
-  end
-
-  def evalAnd(v1, v2) do
-    # (A \/ B) /\ C = (A /\ C) \/ (B /\ C)
-    c1s = flatten_or(v1)
-    c2s = flatten_or(v2)
-    
-    pairs = for c1 <- c1s, c2 <- c2s, do: {c1, c2}
-    
-    new_clauses = Enum.map(pairs, fn {c1, c2} ->
-      (flatten_and(c1) ++ flatten_and(c2))
-        |> Enum.reject(&is1/1)
-        |> Enum.uniq()
-        |> Enum.sort()
-    end)
-    # Reject clauses containing 0
-    new_clauses = Enum.reject(new_clauses, fn conj -> Enum.any?(conj, &is0/1) end)
-    
-    # Absorption
-    new_clauses = remove_absorbed_dnf(new_clauses)
-
-    cond do
-      Enum.any?(new_clauses, fn conj -> conj == [] end) -> %AST.Dir{val: 1}
-      new_clauses == [] -> %AST.Dir{val: 0}
-      true -> build_dnf(new_clauses)
-    end
-  end
-
-  defp remove_absorbed_dnf(clauses) do
-    # Sort by size to facilitate absorption check
-    sorted = Enum.sort_by(clauses, &length/1)
-    Enum.reduce(sorted, [], fn conj, acc ->
-      if Enum.any?(acc, fn existing -> MapSet.subset?(MapSet.new(existing), MapSet.new(conj)) end) do
-        acc
-      else
-        [conj | acc]
-      end
-    end) |> Enum.reverse()
-  end
-
-  defp build_dnf(clauses) do
-    conjs = clauses 
-      |> Enum.sort() # Canonicalize order of OR branches
-      |> Enum.map(&build_and/1)
-    build_or(conjs)
-  end
-
-  defp build_or([h]), do: h
-  defp build_or([h | t]), do: %AST.Or{left: h, right: build_or(t)}
-
-  defp build_and([]), do: %AST.Dir{val: 1}
-  defp build_and([h]), do: h
-  defp build_and([h | t]), do: %AST.And{left: h, right: build_and(t)}
-
-  defp flatten_or(%AST.Or{left: a, right: b}), do: flatten_or(a) ++ flatten_or(b)
-  defp flatten_or(v), do: [v]
-
-  defp flatten_and(%AST.And{left: a, right: b}), do: flatten_and(a) ++ flatten_and(b)
-  defp flatten_and(v), do: [v]
-
-  def negFormula(v) do
-    case v do
-      %AST.Dir{val: 0} -> %AST.Dir{val: 1}
-      %AST.Dir{val: 1} -> %AST.Dir{val: 0}
-      %AST.Neg{expr: e} -> e
-      %AST.And{left: a, right: b} -> evalOr(negFormula(a), negFormula(b))
-      %AST.Or{left: a, right: b} -> evalAnd(negFormula(a), negFormula(b))
-      _ -> %AST.Neg{expr: v}
-    end
-  end
+  def evalOr(v1, v2), do: Per.DNF.eval_or(v1, v2)
+  def evalAnd(v1, v2), do: Per.DNF.eval_and(v1, v2)
+  def negFormula(v), do: Per.DNF.neg_formula(v)
 
   def vfst(%AST.Pair{first: u}), do: u
   def vfst(%AST.Neutral{term: v, type: %AST.Sigma{domain: a, codomain: _b}}), do: %AST.Neutral{term: %AST.Fst{expr: v}, type: a}
@@ -168,7 +86,7 @@ defmodule Per.Typechecker do
       %AST.Id{type: e} -> %AST.Id{type: eval(e, ctx)}
       %AST.Refl{expr: e} -> %AST.Refl{expr: eval(e, ctx)}
       %AST.IdJ{expr: e} -> %AST.IdJ{expr: eval(e, ctx)}
-      %AST.PathP{path: e} -> %AST.PathP{path: eval(e, ctx)}
+      %AST.PathP{path: e, u0: u0, u1: u1} -> %AST.PathP{path: eval(e, ctx), u0: eval(u0, ctx), u1: eval(u1, ctx)}
       %AST.PLam{name: x, body: e} ->
         %AST.PLam{name: x, body: fn r -> eval(e, Map.put(ctx, x, {:local, %AST.Interval{}, r})) end}
       %AST.AppFormula{left: e, right: x} ->
@@ -245,7 +163,9 @@ defmodule Per.Typechecker do
               v
             end
           {:global, _val_t, {:exp, e}} -> eval(e, ctx)
-          nil -> %AST.Var{name: x}
+          nil ->
+            if x == "∂", do: IO.inspect(Map.keys(ctx), label: "CTX KEYS FOR ∂")
+            %AST.Var{name: x}
         end
     end
   end
@@ -365,13 +285,48 @@ defmodule Per.Typechecker do
     if v1 == v2 or convInd(v1, v2) do
       true
     else
-      conv_match(v1, v2)
+      case {v1, v2} do
+        {nil, _} -> true
+        {_, nil} -> true
+        _ ->
+          res = conv_match(v1, v2)
+          if (match?(%AST.PathP{}, v1) or match?(%AST.HComp{}, v1)) and not res do
+            IO.inspect({v1, v2}, label: "CONV FAIL CUBICAL")
+          end
+          res
+      end
     end
   end
   defp conv_match(v1, v2) do
-    v1 = if is_struct(v1, AST.Neutral), do: v1.term, else: v1
-    v2 = if is_struct(v2, AST.Neutral), do: v2.term, else: v2
     case {v1, v2} do
+      {%AST.Lam{body: f}, %AST.Lam{body: g}} ->
+        x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: %AST.Hole{}}
+        conv(f.(x), g.(x))
+
+      {%AST.PLam{body: f}, %AST.PLam{body: g}} when is_function(f) and is_function(g) ->
+        x = %AST.Neutral{term: %AST.Var{name: "i#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
+        conv(f.(x), g.(x))
+
+      {f, %AST.PLam{body: g}} when is_function(g) ->
+        x = %AST.Neutral{term: %AST.Var{name: "j#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
+        conv(appFormula(f, x), g.(x))
+
+      {%AST.PLam{body: f}, g} when is_function(f) ->
+        x = %AST.Neutral{term: %AST.Var{name: "j#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
+        conv(f.(x), appFormula(g, x))
+
+      {f, %AST.Lam{body: g, domain: dom}} ->
+        x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: dom}
+        conv(app(f, x), g.(x))
+
+      {%AST.Lam{body: f, domain: dom}, g} ->
+        x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: dom}
+        conv(f.(x), app(g, x))
+
+      {%AST.Neutral{term: t1}, %AST.Neutral{term: t2}} -> conv(t1, t2)
+      {%AST.Neutral{term: t1}, v2} -> conv(t1, v2)
+      {v1, %AST.Neutral{term: t2}} -> conv(v1, t2)
+
       {%AST.Universe{level: u}, %AST.Universe{level: v}} ->
         Process.get(:per_girard, false) or u == v
       {%AST.Pair{first: a, second: b}, %AST.Pair{first: c, second: d}} -> conv(a, c) && conv(b, d)
@@ -406,40 +361,21 @@ defmodule Per.Typechecker do
           _ -> conv(f, v_g_x)
         end
       {%AST.Interval{}, %AST.Interval{}} -> true
-      {%AST.Dir{val: x}, %AST.Dir{val: y}} -> x == y
-      {%AST.And{left: a, right: b}, %AST.And{left: c, right: d}} -> conv(a, c) && conv(b, d)
-      {%AST.Or{left: a, right: b}, %AST.Or{left: c, right: d}} -> conv(a, c) && conv(b, d)
-      {%AST.Neg{expr: a}, %AST.Neg{expr: b}} -> conv(a, b)
-      {%AST.Universe{level: u}, %AST.Dir{val: v}} ->
-        Process.get(:per_girard, false) or u == v
       {%AST.Dir{val: u}, %AST.Universe{level: v}} ->
         Process.get(:per_girard, false) or u == v
+      {f, g} when is_struct(f, AST.Dir) or is_struct(f, AST.And) or is_struct(f, AST.Or) or is_struct(f, AST.Neg) or
+                  is_struct(g, AST.Dir) or is_struct(g, AST.And) or is_struct(g, AST.Or) or is_struct(g, AST.Neg) ->
+        Per.DNF.logic_eq(f, g)
 
-      {%AST.Lam{body: f}, %AST.Lam{body: g}} ->
-        x = %AST.Var{name: "x#{System.unique_integer([:positive])}"}
-        conv(f.(x), g.(x))
+      {%AST.HComp{type: t1, phi: r1, u: u1, u0: v1}, %AST.HComp{type: t2, phi: r2, u: u2, u0: v2}} ->
+        conv(t1, t2) && conv(r1, r2) && conv(u1, u2) && conv(v1, v2)
 
-      {%AST.PLam{body: f}, %AST.PLam{body: g}} when is_function(f) and is_function(g) ->
-        x = %AST.Neutral{term: %AST.Var{name: "i#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
-        conv(f.(x), g.(x))
+      {%AST.Transp{path: p, phi: i}, %AST.Transp{path: q, phi: j}} ->
+        conv(p, q) && conv(i, j)
 
-      {f, %AST.PLam{body: g}} when is_function(g) ->
-        x = %AST.Var{name: "x#{System.unique_integer([:positive])}"}
-        conv(appFormula(f, x), g.(x))
+      {%AST.App{func: f1, arg: a1}, %AST.App{func: f2, arg: a2}} ->
+        conv(f1, f2) && conv(a1, a2)
 
-      {%AST.PLam{body: f}, g} when is_function(f) ->
-        x = %AST.Var{name: "x#{System.unique_integer([:positive])}"}
-        conv(f.(x), appFormula(g, x))
-
-      {f, %AST.Lam{body: g, domain: dom}} ->
-        x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: dom}
-        conv(app(f, x), g.(x))
-
-      {%AST.Lam{body: f, domain: dom}, g} ->
-        x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: dom}
-        conv(f.(x), app(g, x))
-
-      {%AST.App{func: f1, arg: a1}, %AST.App{func: f2, arg: a2}} -> conv(f1, f2) && conv(a1, a2)
       {%AST.Fst{expr: e1}, %AST.Fst{expr: e2}} -> conv(e1, e2)
       {%AST.Snd{expr: e1}, %AST.Snd{expr: e2}} -> conv(e1, e2)
 
@@ -448,12 +384,6 @@ defmodule Per.Typechecker do
         conv(a, b) && conv(f.(x), g.(x))
 
       {%AST.Var{name: u}, %AST.Var{name: v}} -> u == v
-
-      {%AST.PathP{path: a}, %AST.PathP{path: b}} -> conv(a, b)
-
-      {%AST.Transp{path: p, phi: i}, %AST.Transp{path: q, phi: j}} -> conv(p, q) && conv(i, j)
-      {%AST.HComp{type: t1, phi: r1, u: u1, u0: v1}, %AST.HComp{type: t2, phi: r2, u: u2, u0: v2}} ->
-        conv(t1, t2) && conv(r1, r2) && conv(u1, u2) && conv(v1, v2)
 
       {%AST.Empty{}, %AST.Empty{}} -> true
       {%AST.Unit{}, %AST.Unit{}} -> true
@@ -472,10 +402,10 @@ defmodule Per.Typechecker do
       {%AST.IndUnit{type: a}, %AST.IndUnit{type: b}} -> conv(a, b)
       {%AST.IndEmpty{type: a}, %AST.IndEmpty{type: b}} -> conv(a, b)
 
-      {v, %AST.Pair{first: a, second: b, tag: _t}} ->
+      {v, %AST.Pair{first: a, second: b}} ->
         conv(vfst(v), a) && conv(vsnd(v), b)
 
-      {%AST.Pair{first: a, second: b, tag: _t}, v} ->
+      {%AST.Pair{first: a, second: b}, v} ->
         conv(a, vfst(v)) && conv(b, vsnd(v))
 
       {%AST.Id{type: a}, %AST.Id{type: b}} -> conv(a, b)
