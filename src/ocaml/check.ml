@@ -247,8 +247,8 @@ and app : value * value -> value = function
   | VApp (VIndUnit _, f), VStar -> f
   | VApp (VApp (VIndBool _, f), _), VFalse -> f
   | VApp (VApp (VIndBool _, _), g), VTrue -> g
-  | VApp (VIndW (a, b, c), g), VSup (x, f) ->
-      let rec_call = VLam (app (b, x), (fresh (ident "b"), fun b' -> app (app (VIndW (a, b, c), g), app (f, b')))) in
+  | VApp (VIndW (a, b, c), g), VApp (VApp (VSup (_, b1), x), f) ->
+      let rec_call = VLam (app (b1, x), (fresh (ident "b"), fun b' -> app (app (VIndW (a, b, c), g), app (f, b')))) in
       app (app (app (g, x), f), rec_call)
   | f, x -> VApp (f, x)
 

@@ -43,18 +43,19 @@ def W-case (A : U) (B : A → U) (C : U) (g : Π (x : A) (f : B x → (W (x : A)
   : (W (x : A), B x) → C
  := W-ind′ A B (λ (_ : W (x : A), B x), C) g
 
+
+def W-proj₁ (A : U) (B : A → U) : (W (x : A), B x) → A
+ := W-case A B A (λ (x : A) (f : B x → (W (x : A), B x)), x)
+
+def W-proj₂ (A : U) (B : A → U) : Π (w : W (x : A), B x), B (W-proj₁ A B w) → (W (x : A), B x)
+ := W-ind′ A B (λ (w : W (x : A), B x), B (W-proj₁ A B w) → (W (x : A), B x))
+               (λ (x : A) (f : B x → (W (x : A), B x)), f)
+
 def indᵂ-β (A : U) (B : A → U) (C : (W (x : A), B x) → U)
      (g : Π (x : A) (f : B x → (W (x : A), B x)), (Π (b : B x), C (f b)) → C (sup A B x f))
      (a : A) (f : B a → (W (x : A), B x))
   : PathP (<_> C (sup A B a f)) (indᵂ A B C g (sup A B a f)) (g a f (λ (b : B a), indᵂ A B C g (f b)))
  := <_> g a f (λ (b : B a), indᵂ A B C g (f b))
-
-def W-proj₁ (A : U) (B : A → U) : (W (x : A), B x) → A
- := W-case A B A (λ (x : A) (f : B x → (W (x : A), B x)), x)
-
---def W-proj₂ (A : U) (B : A → U) : Π (w : W (x : A), B x), B (W-proj₁ A B w) → (W (x : A), B x)
--- := W-ind′ A B (λ (w : W (x : A), B x), B (W-proj₁ A B w) → (W (x : A), B x))
---               (λ (x : A) (f : B x → (W (x : A), B x)), f)
 
 --def W-η (A : U) (B : A → U)
 --  : Π (w : W (x : A), B x), Path (W (x : A), B x) (sup A B (W-proj₁ A B w) (W-proj₂ A B w)) w
