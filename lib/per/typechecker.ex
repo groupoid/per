@@ -54,8 +54,35 @@ defmodule Per.Typechecker do
       {%AST.And{left: f, right: g}, 0} -> union_faces(solve(f, 0), solve(g, 0))
       {%AST.Or{left: f, right: g}, 0} -> meets(solve(f, 0), solve(g, 0))
       {%AST.And{left: f, right: g}, 1} -> meets(solve(f, 1), solve(g, 1))
+      _ ->
+        case k do
+          %AST.App{} -> [] # Should have been reduced
+          _ -> []
+        end
+    end
+  end
+
+  defp getFaceV(face) do
+    # face can be a map %{name => val} or a tuple {name, val}
+    face_list = case face do
+      m when is_map(m) -> Map.to_list(m)
+      {n, v} -> [{n, v}]
       _ -> []
     end
+    Enum.reduce(face_list, %AST.Dir{val: 1}, fn {name, val}, acc ->
+      atom = %AST.Var{name: name}
+      term = if val == 1, do: atom, else: %AST.Neg{expr: atom}
+      evalAnd(acc, term)
+    end)
+  end
+
+  defp getFormulaV(map) do
+    if is_struct(map) do
+      IO.puts "DEBUG getFormulaV: input is struct: #{inspect(map.__struct__)}"
+    end
+    Enum.reduce(map, %AST.Dir{val: 0}, fn {face, _val}, acc ->
+      evalOr(getFaceV(face), acc)
+    end)
   end
 
   defp union_faces(xs, ys), do: Enum.uniq(xs ++ ys)
@@ -77,7 +104,16 @@ defmodule Per.Typechecker do
   end
 
   defp faceEnv(alpha, ctx) do
-    Enum.reduce(alpha, ctx, fn {name, val}, acc ->
+    # Normalize face to map/list of pairs
+    face_items = case alpha do
+      m when is_map(m) and not is_struct(m) -> m
+      l when is_list(l) -> l
+      {n, v} -> [{n, v}]
+      m when is_map(m) and is_struct(m, AST.System) -> m.map
+      m when is_map(m) and is_struct(m) -> Map.from_struct(m)
+      _ -> %{}
+    end
+    Enum.reduce(face_items, ctx, fn {name, val}, acc ->
       Map.put(acc, name, {:local, %AST.Interval{}, %AST.Dir{val: val}})
     end)
   end
@@ -87,12 +123,19 @@ defmodule Per.Typechecker do
 
   defp upd(_alpha, v), do: v # Simplified face update
 
-  defp is0(v), do: match?(%AST.Dir{val: 0}, v)
   defp is1(v), do: match?(%AST.Dir{val: 1}, v)
 
-  def evalOr(v1, v2), do: Per.DNF.eval_or(v1, v2)
+  def evalOr(v1, v2) do
+    res = Per.DNF.eval_or(v1, v2)
+    # IO.inspect({v1, v2, res}, label: "evalOr")
+    res
+  end
   def evalAnd(v1, v2), do: Per.DNF.eval_and(v1, v2)
-  def negFormula(v), do: Per.DNF.neg_formula(v)
+  def negFormula(v) do
+    res = Per.DNF.neg_formula(v)
+    # IO.inspect({v, res}, label: "negFormula")
+    res
+  end
 
   def vfst(%AST.Pair{first: u}), do: u
   def vfst(%AST.Neutral{term: v, type: %AST.Sigma{domain: a, codomain: _b}}), do: %AST.Neutral{term: %AST.Fst{expr: v}, type: a}
@@ -105,23 +148,39 @@ defmodule Per.Typechecker do
   # --- Evaluation ---
 
   def eval(expr, ctx) do
+    res = do_eval(expr, ctx)
+    if is_function(res) do
+      IO.puts "CRITICAL eval: returned naked function for expr: #{inspect(expr)}"
+    end
+    res
+  end
+
+  defp do_eval(expr, ctx) do
     case expr do
       %AST.Universe{level: l} -> %AST.Universe{level: l}
       %AST.Var{name: x} -> getRho(ctx, x)
       %AST.Hole{} -> %AST.Hole{}
       %AST.Pi{name: x, domain: a, codomain: b} ->
-        t = eval(a, ctx)
-        %AST.Pi{name: x, domain: t, codomain: closByVal(ctx, x, t, b)}
+        if is_function(b) do
+           %AST.Pi{name: x, domain: eval(a, ctx), codomain: b}
+        else
+           t = eval(a, ctx)
+           %AST.Pi{name: x, domain: t, codomain: closByVal(ctx, x, t, b)}
+        end
       %AST.Sigma{name: x, domain: a, codomain: b} ->
-        t = eval(a, ctx)
-        %AST.Sigma{name: x, domain: t, codomain: closByVal(ctx, x, t, b)}
+        if is_function(b) do
+           %AST.Sigma{name: x, domain: eval(a, ctx), codomain: b}
+        else
+           t = eval(a, ctx)
+           %AST.Sigma{name: x, domain: t, codomain: closByVal(ctx, x, t, b)}
+        end
       %AST.Lam{name: x, body: b} ->
-        # In OCaml model, VLam has domain too. Elixir AST Lam has domain?
-        # Let's check AST.Lam. It has :name, :domain, :body.
-        # Wait, OCaml ELam is ELam of exp * (ident * exp).
-        # Our Parser for Lam: %AST.Lam{name: x, domain: a, body: b}
-        t = if Map.has_key?(expr, :domain) && expr.domain, do: eval(expr.domain, ctx), else: %AST.Hole{}
-        %AST.Lam{name: x, domain: t, body: closByVal(ctx, x, t, b)}
+        if is_function(b) do
+           %AST.Lam{name: x, body: b}
+        else
+           domain = if Map.has_key?(expr, :domain) && expr.domain, do: eval(expr.domain, ctx), else: %AST.Hole{}
+           %AST.Lam{name: x, domain: domain, body: closByVal(ctx, x, domain, b)}
+        end
       %AST.App{func: f, arg: x} ->
         app(eval(f, ctx), eval(x, ctx))
       %AST.Pair{first: e1, second: e2, tag: r} ->
@@ -134,7 +193,11 @@ defmodule Per.Typechecker do
       %AST.IdJ{expr: e} -> %AST.IdJ{expr: eval(e, ctx)}
       %AST.PathP{path: e, u0: u0, u1: u1} -> %AST.PathP{path: eval(e, ctx), u0: eval(u0, ctx), u1: eval(u1, ctx)}
       %AST.PLam{name: x, body: e} ->
-        %AST.PLam{name: x, body: fn r -> eval(e, Map.put(ctx, x, {:local, %AST.Interval{}, r})) end}
+        if is_function(e) do
+           %AST.PLam{name: x, body: e}
+        else
+           %AST.PLam{name: x, body: fn r -> eval(e, Map.put(ctx, x, {:local, %AST.Interval{}, r})) end}
+        end
       %AST.AppFormula{left: e, right: x} ->
         appFormula(eval(e, ctx), eval(x, ctx))
       %AST.Interval{} -> %AST.Interval{}
@@ -166,8 +229,12 @@ defmodule Per.Typechecker do
       %AST.TrueConstant{} -> %AST.TrueConstant{}
       %AST.IndBool{type: e} -> %AST.IndBool{type: eval(e, ctx)}
       %AST.W{name: x, domain: a, codomain: b} ->
-        t = eval(a, ctx)
-        %AST.W{name: x, domain: t, codomain: closByVal(ctx, x, t, b)}
+        if is_function(b) do
+           %AST.W{name: x, domain: eval(a, ctx), codomain: b}
+        else
+           t = eval(a, ctx)
+           %AST.W{name: x, domain: t, codomain: closByVal(ctx, x, t, b)}
+        end
       %AST.Sup{a: a, b: b} -> %AST.Sup{a: eval(a, ctx), b: eval(b, ctx)}
       %AST.IndW{a: a, b: b, motive: m} ->
         %AST.IndW{a: eval(a, ctx), b: eval(b, ctx), motive: eval(m, ctx)}
@@ -189,35 +256,33 @@ defmodule Per.Typechecker do
   end
 
   defp getRho(ctx, x) do
-    case x do
-      "0" -> %AST.Universe{level: 0}
-      "1" -> %AST.Universe{level: 1}
-      _ ->
-        case Map.get(ctx, x) do
-          {:local, t, v} ->
-            if is_struct(v, AST.Var) or is_struct(v, AST.Neutral) do
-              term = if is_struct(v, AST.Neutral), do: v.term, else: v
-              %AST.Neutral{term: term, type: t}
-            else
-              v
-            end
-          {:global, t, {:value, v}} ->
-            if is_struct(v, AST.Var) or is_struct(v, AST.Neutral) do
-              term = if is_struct(v, AST.Neutral), do: v.term, else: v
-              %AST.Neutral{term: term, type: t}
-            else
-              v
-            end
-          {:global, _val_t, {:exp, e}} -> eval(e, ctx)
-          nil ->
-            if x == "∂", do: IO.inspect(Map.keys(ctx), label: "CTX KEYS FOR ∂")
-            %AST.Var{name: x}
+    case Map.get(ctx, x) do
+      {:local, t, v} ->
+        if is_struct(v, AST.Var), do: %AST.Neutral{term: v, type: t}, else: v
+      {:global, t, {:value, v}} ->
+        if is_struct(v, AST.Var), do: %AST.Neutral{term: v, type: t}, else: v
+      {:global, _val_t, {:exp, e}} -> eval(e, ctx)
+      nil ->
+        case x do
+          "0" -> %AST.Universe{level: 0} # Should probably be handled in lexer/parser
+          "1" -> %AST.Universe{level: 1}
+          _ -> %AST.Var{name: x}
         end
     end
   end
 
+  defp safe_enum(e, label) do
+    if not Enumerable.impl_for(e) do
+      IO.puts "SAFE_ENUM FAIL [#{label}]: value is not Enumerable: #{inspect(e)}"
+    end
+    e
+  end
+
   defp closByVal(ctx, x, t, b) do
     # x is identifier, t is domain value, b is body expression
+    if is_function(b) do
+       IO.puts "DEBUG: closByVal received ALREADY A FUNCTION for body: #{inspect(b)}"
+    end
     fn v -> eval(b, Map.put(ctx, x, {:local, t, v})) end
   end
 
@@ -225,6 +290,14 @@ defmodule Per.Typechecker do
     case f do
       %AST.Lam{body: func} when is_function(func) -> func.(x)
       %AST.PLam{body: func} when is_function(func) -> func.(x)
+      %AST.System{map: xs} ->
+        case Map.get(xs, %{}) do
+          nil -> %AST.System{map: Map.new(Enum.map(xs, fn {face, term} -> {face, app(term, x)} end))}
+          v -> v
+        end
+      %AST.PartialP{type: t} -> app(t, x)
+      %AST.AppFormula{left: v, right: r} ->
+        %AST.AppFormula{left: app(v, x), right: r}
 
       # Extensions for canonicity
       %AST.App{func: %AST.App{func: %AST.App{func: %AST.IdJ{expr: _m}, arg: d}, arg: _x_val}, arg: _p_val} ->
@@ -278,20 +351,38 @@ defmodule Per.Typechecker do
       %AST.Neutral{term: term, type: %AST.Pi{domain: _a, codomain: b}} ->
          %AST.Neutral{term: %AST.App{func: term, arg: x}, type: b.(x)}
 
-      _ -> %AST.App{func: f, arg: x}
+      _ ->
+        if match?(%AST.Var{name: "∂"}, f), do: IO.inspect({f, x}, label: "APP OF ∂")
+        %AST.App{func: f, arg: x}
     end
   end
 
   defp appFormula(v, x) do
     case v do
+      %AST.Lam{body: func} when is_function(func) -> func.(x)
       %AST.PLam{body: func} when is_function(func) -> func.(x)
       %AST.Neutral{term: term, type: %AST.PathP{path: p, u0: u0, u1: u1}} ->
         case x do
           %AST.Dir{val: 0} -> u0
           %AST.Dir{val: 1} -> u1
-          _ -> %AST.Neutral{term: %AST.AppFormula{left: term, right: x}, type: appFormula(p, x)}
+          _ ->
+            x_ast = case x do
+              %AST.Neutral{term: t} -> t
+              n when is_binary(n) -> %AST.Var{name: n}
+              _ -> x
+            end
+            %AST.Neutral{term: %AST.AppFormula{left: term, right: x_ast}, type: appFormula(p, x)}
         end
-      _ -> %AST.AppFormula{left: v, right: x}
+      %AST.PartialP{type: t} -> appFormula(t, x)
+      %AST.System{map: xs} ->
+        %AST.System{map: Map.new(Enum.map(xs, fn {face, term} -> {face, appFormula(term, x)} end))}
+      _ ->
+        x_ast = case x do
+          %AST.Neutral{term: t} -> t
+          n when is_binary(n) -> %AST.Var{name: n}
+          _ -> x
+        end
+        %AST.AppFormula{left: v, right: x_ast}
     end
   end
 
@@ -301,8 +392,47 @@ defmodule Per.Typechecker do
   end
 
 
-  defp evalSystem(_ctx, xs) do
-    xs # Simplified
+  defp evalSystem(ctx, xs) do
+    # Prune faces and evaluate terms in extended context
+    ts_prime = Map.new(Enum.flat_map(safe_enum(xs, "evalSystem"), fn {face, term} ->
+       # Normalize face to map
+       alpha = case face do
+         m when is_map(m) -> m
+         {n, v} -> %{n => v}
+         _ -> %{}
+       end
+       # Evaluate term in context extended by face alpha
+       v = eval(term, faceEnv(alpha, ctx))
+       # The face itself might be simplified or impossible in current ctx?
+       # Actually, solve(face, 1) in ctx should tell us.
+       # Simplified: if any condition in face is contradicted by ctx, prune.
+       if face_contradicts?(alpha, ctx) do
+         []
+       else
+         [{face, v}]
+       end
+    end))
+    case Map.values(ts_prime) |> Enum.find(fn _ -> Map.has_key?(ts_prime, %{}) end) do
+      nil -> %AST.System{map: ts_prime}
+      _ -> Map.get(ts_prime, %{})
+    end
+  end
+
+  defp face_contradicts?(face, ctx) do
+    alpha = case face do
+      m when is_map(m) and not is_struct(m) -> m
+      l when is_list(l) -> l
+      {n, v} -> [{n, v}]
+      m when is_map(m) and is_struct(m, AST.System) -> m.map
+      m when is_map(m) and is_struct(m) -> Map.from_struct(m)
+      _ -> %{}
+    end
+    Enum.any?(alpha, fn {name, val} ->
+      case Map.get(ctx, name) do
+        {:local, _, %AST.Dir{val: v}} -> v != val
+        _ -> false
+      end
+    end)
   end
 
   defp evalOuc(v), do: %AST.Ouc{expr: v}
@@ -328,38 +458,53 @@ defmodule Per.Typechecker do
   end
 
   def conv(v1, v2) do
-    if v1 == v2 or convInd(v1, v2) do
-      true
-    else
-      case {v1, v2} do
-        {nil, _} -> true
-        {_, nil} -> true
-        _ ->
-          res = conv_match(v1, v2)
-          if (match?(%AST.PathP{}, v1) or match?(%AST.HComp{}, v1)) and not res do
-            IO.inspect({v1, v2}, label: "CONV FAIL CUBICAL")
+    if is_function(v1) or is_function(v2) do
+      IO.puts "DEBUG conv: received function atom!"
+      IO.inspect(v1, label: "V1")
+      IO.inspect(v2, label: "V2")
+    end
+    try do
+      cond do
+        v1 == v2 -> true
+        convInd(v1, v2) -> true
+        true ->
+          case {v1, v2} do
+            {nil, _} -> true
+            {_, nil} -> true
+            _ -> conv_match(v1, v2)
           end
-          res
       end
+    rescue
+      e ->
+        IO.puts "CONV CRASHED: #{inspect(e)}"
+        reraise e, __STACKTRACE__
     end
   end
   defp conv_match(v1, v2) do
     case {v1, v2} do
       {%AST.Lam{body: f}, %AST.Lam{body: g}} ->
-        x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: %AST.Hole{}}
+        name = "x#{System.unique_integer([:positive])}"
+        x = %AST.Neutral{term: %AST.Var{name: name}, type: %AST.Hole{}}
         conv(f.(x), g.(x))
 
       {%AST.PLam{body: f}, %AST.PLam{body: g}} when is_function(f) and is_function(g) ->
-        x = %AST.Neutral{term: %AST.Var{name: "i#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
-        conv(f.(x), g.(x))
+        name = "i#{System.unique_integer([:positive])}"
+        x = %AST.Neutral{term: %AST.Var{name: name}, type: %AST.Interval{}}
+        v1 = f.(x)
+        v2 = g.(x)
+        res = conv(v1, v2)
+        res
 
       {f, %AST.PLam{body: g}} when is_function(g) ->
         x = %AST.Neutral{term: %AST.Var{name: "j#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
         conv(appFormula(f, x), g.(x))
 
       {%AST.PLam{body: f}, g} when is_function(f) ->
-        x = %AST.Neutral{term: %AST.Var{name: "j#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
-        conv(f.(x), appFormula(g, x))
+        name = "j#{System.unique_integer([:positive])}"
+        x = %AST.Neutral{term: %AST.Var{name: name}, type: %AST.Interval{}}
+        v1 = f.(x)
+        v2 = appFormula(g, x)
+        conv(v1, v2)
 
       {f, %AST.Lam{body: g, domain: dom}} ->
         x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: dom}
@@ -369,15 +514,53 @@ defmodule Per.Typechecker do
         x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: dom}
         conv(f.(x), app(g, x))
 
-      {%AST.Neutral{term: t1}, %AST.Neutral{term: t2}} -> conv(t1, t2)
+      {%AST.Neutral{term: t1}, %AST.Neutral{term: t2}} ->
+        conv(t1, t2)
       {%AST.Neutral{term: t1}, v2} -> conv(t1, v2)
       {v1, %AST.Neutral{term: t2}} -> conv(v1, t2)
 
       {%AST.Universe{level: u}, %AST.Universe{level: v}} ->
         Process.get(:per_girard, false) or u == v
       {%AST.Pair{first: a, second: b}, %AST.Pair{first: c, second: d}} -> conv(a, c) && conv(b, d)
-      {%AST.Pair{first: a, second: b}, v} -> conv(vfst(v), a) && conv(vsnd(v), b)
-      {v, %AST.Pair{first: a, second: b}} -> conv(vfst(v), a) && conv(vsnd(v), b)
+
+      {%AST.System{map: xs}, %AST.System{map: ys}} ->
+        Map.keys(xs) == Map.keys(ys) && (try do Enum.all?(safe_enum(xs, "conv_sys_sys"), fn {face, term} -> conv(term, Map.get(ys, face)) end) rescue e -> IO.puts("Enum.all? FAIL SYS/SYS: #{inspect(xs)}"); reraise e, __STACKTRACE__ end)
+
+      {%AST.System{map: xs}, x} ->
+        try do
+          Enum.all?(safe_enum(xs, "conv_sys_any"), fn {face, y} -> conv(app(upd_face(face, x), %AST.Refl{expr: %AST.Dir{val: 1}}), y) end)
+        rescue
+          e -> IO.puts("Enum.all? FAIL SYS/ANY: #{inspect(xs)}"); reraise e, __STACKTRACE__
+        end
+      {x, %AST.System{map: xs}} ->
+        try do
+          Enum.all?(safe_enum(xs, "conv_any_sys"), fn {face, y} -> conv(app(upd_face(face, x), %AST.Refl{expr: %AST.Dir{val: 1}}), y) end)
+        rescue
+          e -> IO.puts("Enum.all? FAIL ANY/SYS: #{inspect(xs)}"); reraise e, __STACKTRACE__
+        end
+
+      {%AST.HComp{type: t1, phi: r1, u: u1, u0: v1}, %AST.HComp{type: t2, phi: r2, u: u2, u0: v2}} ->
+        conv(t1, t2) && conv(r1, r2) && conv(u1, u2) && conv(v1, v2)
+
+      {%AST.Transp{path: p1, phi: i1}, %AST.Transp{path: p2, phi: i2}} ->
+        conv(p1, p2) && conv(i1, i2)
+
+      {%AST.HComp{phi: r, u: u, u0: u0}, v} ->
+        res_u0 = conv(u0, v)
+        res_u0 && Enum.all?(solve(r, 1), fn face ->
+          ctx_face = faceEnv(face, %{})
+          v_face = eval(app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}}), ctx_face)
+          v_expected = eval(v, ctx_face)
+          conv(v_face, v_expected)
+        end)
+      {v, %AST.HComp{phi: r, u: u, u0: u0}} ->
+        res_u0 = conv(u0, v)
+        res_u0 && Enum.all?(solve(r, 1), fn face ->
+          ctx_face = faceEnv(face, %{})
+          v_face = eval(app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}}), ctx_face)
+          v_expected = eval(v, ctx_face)
+          conv(v_face, v_expected)
+        end)
 
       {%AST.Pi{domain: a, codomain: f}, %AST.Pi{domain: b, codomain: g}} ->
         x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: a}
@@ -407,17 +590,9 @@ defmodule Per.Typechecker do
           _ -> conv(f, v_g_x)
         end
       {%AST.Interval{}, %AST.Interval{}} -> true
-      {%AST.Dir{val: u}, %AST.Universe{level: v}} ->
+      {%AST.Universe{level: u}, %AST.Universe{level: v}} ->
         Process.get(:per_girard, false) or u == v
-      {f, g} when is_struct(f, AST.Dir) or is_struct(f, AST.And) or is_struct(f, AST.Or) or is_struct(f, AST.Neg) or
-                  is_struct(g, AST.Dir) or is_struct(g, AST.And) or is_struct(g, AST.Or) or is_struct(g, AST.Neg) ->
-        Per.DNF.logic_eq(f, g)
 
-      {%AST.HComp{type: t1, phi: r1, u: u1, u0: v1}, %AST.HComp{type: t2, phi: r2, u: u2, u0: v2}} ->
-        conv(t1, t2) && conv(r1, r2) && conv(u1, u2) && conv(v1, v2)
-
-      {%AST.Transp{path: p, phi: i}, %AST.Transp{path: q, phi: j}} ->
-        conv(p, q) && conv(i, j)
 
       {%AST.App{func: f1, arg: a1}, %AST.App{func: f2, arg: a2}} ->
         conv(f1, f2) && conv(a1, a2)
@@ -448,6 +623,15 @@ defmodule Per.Typechecker do
       {%AST.IndUnit{type: a}, %AST.IndUnit{type: b}} -> conv(a, b)
       {%AST.IndEmpty{type: a}, %AST.IndEmpty{type: b}} -> conv(a, b)
 
+      {%AST.Partial{expr: e1}, %AST.Partial{expr: e2}} -> conv(e1, e2)
+      {%AST.PartialP{type: t1, phi: r1}, %AST.PartialP{type: t2, phi: r2}} ->
+        conv(r1, r2) && conv(t1, t2)
+      {%AST.Sub{type: t1, phi: r1, u: u1}, %AST.Sub{type: t2, phi: r2, u: u2}} ->
+        conv(t1, t2) && conv(r1, r2) && conv(u1, u2)
+      {%AST.Inc{type: t1, phi: r1}, %AST.Inc{type: t2, phi: r2}} ->
+        conv(t1, t2) && conv(r1, r2)
+      {%AST.Ouc{expr: e1}, %AST.Ouc{expr: e2}} -> conv(e1, e2)
+
       {v, %AST.Pair{first: a, second: b}} ->
         conv(vfst(v), a) && conv(vsnd(v), b)
 
@@ -458,7 +642,9 @@ defmodule Per.Typechecker do
       {%AST.Refl{expr: a}, %AST.Refl{expr: b}} -> conv(a, b)
       {%AST.IdJ{expr: a}, %AST.IdJ{expr: b}} -> conv(a, b)
 
-      _ -> false
+      _ -> 
+        IO.inspect({v1, v2}, label: "conv_match CATCH-ALL")
+        false
     end
   end
 
@@ -466,7 +652,9 @@ defmodule Per.Typechecker do
     if conv(v1, v2) do
       :ok
     else
-      # IO.inspect({v1, v2}, label: "TRACE eqNf FAIL")
+      IO.puts "eqNf MISMATCH"
+      IO.inspect(v1, label: "  V1")
+      IO.inspect(v2, label: "  V2")
       raise "Inference error: terms not convertible: #{AST.to_string(v1)} and #{AST.to_string(v2)}"
     end
   end
@@ -479,19 +667,65 @@ defmodule Per.Typechecker do
   # --- Cubical Operations ---
 
   def transport(p, phi, u0) do
-    v = %AST.Var{name: "v"}
-    ev_p = appFormula(p, v)
+    # transp p phi u0
+    # OCaml: let (_, _, v) = freshDim () in match appFormula p v, phi with
+    v_dim = %AST.Neutral{term: %AST.Var{name: "i#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
+    ev_p = appFormula(p, v_dim)
     cond do
       is1(phi) -> u0
       match?(%AST.Universe{}, ev_p) -> u0
       match?(%AST.Pi{}, ev_p) ->
-        # transp (Pi a b) r u = \ x -> transp (b (transp (<i> a -i) r x)) r (u (transp (<i> a -i) r x))
-        # ev_p is Pi(domain=dom, codomain=cod). Note that 'cod' is a function.
-        %AST.Pi{name: x, domain: dom, codomain: cod} = ev_p
-        %AST.Lam{name: x, domain: dom, body: fn arg ->
-          # Higher-order transport
-          transport(cod.(arg), phi, app(u0, arg))
+        # transp (<i> Π (x : A i), B i x) φ u₀ ~> λ (x : A 1), transp (<i> B i (transFill (<j> A -j) φ x i)) φ (u₀ (transFill (<j> A -j) φ x 1))
+        # ev_p is Pi(...) at i
+        # We need the domain and codomain at i=1 for the lambda domain.
+        {dom1, _} = extPiG(appFormula(p, %AST.Dir{val: 1}))
+        %AST.Lam{name: "x", domain: dom1, body: fn x ->
+          v = fn j -> transFill(%AST.PLam{name: "j", body: fn j ->
+            {dom_neg_j, _} = extPiG(appFormula(p, negFormula(j)))
+            dom_neg_j
+          end}, phi, x, j) end
+          
+          p_cod = %AST.PLam{name: "i", body: fn i ->
+            {_, {_, cod_i}} = extPiG(appFormula(p, i))
+            cod_i.(v.(negFormula(i)))
+          end}
+          transport(p_cod, phi, app(u0, v.(%AST.Dir{val: 1})))
         end}
+
+      match?(%AST.Sigma{}, ev_p) ->
+        # transp (<i> Σ (x : A i), B i x) φ u₀ ~> (transp (<j> A j) φ u₀.1, transp (<i> B i (transFill (<j> A j) φ u₀.1 i)) φ u₀.2)
+        a = %AST.PLam{name: "j", body: fn j ->
+          {dom_j, _} = extSigG(appFormula(p, j))
+          dom_j
+        end}
+        v1 = fn i -> transFill(a, phi, vfst(u0), i) end
+        p_cod = %AST.PLam{name: "i", body: fn i ->
+          {_, {_, cod_i}} = extSigG(appFormula(p, i))
+          cod_i.(v1.(i))
+        end}
+        v2 = transport(p_cod, phi, vsnd(u0))
+        %AST.Pair{first: v1.(%AST.Dir{val: 1}), second: v2}
+
+      match?(%AST.App{func: %AST.App{func: %AST.PathP{path: _}, arg: _}, arg: _}, ev_p) ||
+      match?(%AST.PathP{}, ev_p) ->
+        # transp (<i> PathP (P i) (v i) (w i)) φ u₀ ~> <j> comp (λ i, P i @ j) (φ ∨ j ∨ -j) (λ (i : I), [(φ = 1) → u₀ @ j, (j = 0) → v i, (j = 1) → w i]) (u₀ @ j)
+        %AST.PLam{name: "j", body: fn j ->
+          uj = appFormula(u0, j)
+          r_prime = evalOr(phi, evalOr(j, negFormula(j)))
+          t_comp = fn i ->
+            {p_i, _, _} = extPathP(appFormula(p, i))
+            appFormula(p_i, j)
+          end
+          u_comp = %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
+            {_, v_i, w_i} = extPathP(appFormula(p, i))
+            sys1 = border(solve(phi, 1), uj)
+            sys2 = border(solve(j, 0), v_i)
+            sys3 = border(solve(j, 1), w_i)
+            %AST.System{map: Map.merge(Map.merge(sys1.map, sys2.map), sys3.map)}
+          end}
+          comp(t_comp, r_prime, u_comp, uj)
+        end}
+
       true ->
         %AST.App{func: %AST.Transp{path: p, phi: phi}, arg: u0}
     end
@@ -502,24 +736,26 @@ defmodule Per.Typechecker do
       {_, %AST.Dir{val: 1}} ->
         app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
 
+      {_, %AST.Dir{val: 0}} -> u0
+
       {%AST.Pi{domain: dom, codomain: cod}, _} ->
         # λ (x : A), hcomp (B x) φ (λ (i : I), [φ → u i 1=1 x]) (u₀ x)
         %AST.Lam{name: "x", domain: dom, body: fn x ->
           hcomp(cod.(x), r, %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
-            %AST.System{map: %{r => app(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), x)}}
+            border(solve(r, 1), app(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), x))
           end}, app(u0, x))
         end}
 
       {%AST.Sigma{domain: dom, codomain: cod}, _} ->
         # (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 1, comp (λ i, B (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 i)) φ (λ (k : I), [(r = 1) → (u k 1=1).2]) u₀.2)
         v1_hfill = fn j -> hfill(dom, r, %AST.Lam{name: "k", domain: %AST.Interval{}, body: fn k ->
-          %AST.System{map: %{r => vfst(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}}))}}
+          border(solve(r, 1), vfst(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}})))
         end}, vfst(u0), j) end
         
         v1_final = v1_hfill.(%AST.Dir{val: 1})
         
         v2 = comp(fn i -> cod.(v1_hfill.(i)) end, r, %AST.Lam{name: "k", domain: %AST.Interval{}, body: fn k ->
-          %AST.System{map: %{r => vsnd(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}}))}}
+          border(solve(r, 1), vsnd(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}})))
         end}, vsnd(u0))
         
         %AST.Pair{first: v1_final, second: v2}
@@ -529,11 +765,10 @@ defmodule Per.Typechecker do
         %AST.PLam{name: "j", body: fn j ->
           r_prime = evalOr(r, evalOr(j, negFormula(j)))
           hcomp(appFormula(t_path, j), r_prime, %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
-            %AST.System{map: %{
-              r => appFormula(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), j),
-              negFormula(j) => v,
-              j => w
-            }}
+            sys1 = border(solve(r, 1), appFormula(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), j))
+            sys2 = border(solve(j, 0), v)
+            sys3 = border(solve(j, 1), w)
+            %AST.System{map: Map.merge(Map.merge(sys1.map, sys2.map), sys3.map)}
           end}, appFormula(u0, j))
         end}
 
@@ -544,10 +779,9 @@ defmodule Per.Typechecker do
   def hfill(t, r, u, u0, j) do
     # hcomp t ((-j) \/ r) (\ i -> [r -> u (i /\ j) 1=1, (j=0) -> u0]) u0
     hcomp(t, evalOr(negFormula(j), r), %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
-      %AST.System{map: %{
-        r => app(app(u, evalAnd(i, j)), %AST.Refl{expr: %AST.Dir{val: 1}}),
-        negFormula(j) => u0
-      }}
+      sys1 = border(solve(r, 1), app(app(u, evalAnd(i, j)), %AST.Refl{expr: %AST.Dir{val: 1}}))
+      sys2 = border(solve(j, 0), u0)
+      %AST.System{map: Map.merge(sys1.map, sys2.map)}
     end}, u0)
   end
 
@@ -579,27 +813,44 @@ defmodule Per.Typechecker do
           check(ctx, e1, t)
           check(ctx, e2, g.(eval(e1, ctx)))
 
+        {%AST.System{map: ts}, %AST.PartialP{type: t, phi: _phi}} ->
+          Enum.each(ts, fn {face, e} ->
+             alpha = [face]
+             check(faceEnv(alpha, ctx), e, t)
+          end)
+          :ok
+
         {%AST.PLam{name: x, body: b}, %AST.PathP{path: p, u0: u0, u1: u1}} ->
-          # Check endpoints by substituting dimensions
           v0 = eval(b, Map.put(ctx, x, {:local, %AST.Interval{}, %AST.Dir{val: 0}}))
           v1 = eval(b, Map.put(ctx, x, {:local, %AST.Interval{}, %AST.Dir{val: 1}}))
-          if not conv(v0, u0), do: raise "Path endpoint mismatch at 0: expected #{AST.to_string(u0)}, got #{AST.to_string(v0)}"
-          if not conv(v1, u1), do: raise "Path endpoint mismatch at 1: expected #{AST.to_string(u1)}, got #{AST.to_string(v1)}"
-          # Check interior
+          if not conv(v0, u0) do
+             IO.puts "PATH ENDPOINT 0 MISMATCH"
+             IO.inspect({v0, u0}, label: "GOT vs EXPECTED")
+             raise "Path endpoint mismatch at 0: expected #{AST.to_string(u0)}, got #{AST.to_string(v0)}"
+          end
+          if not conv(v1, u1) do
+             IO.puts "PATH ENDPOINT 1 MISMATCH"
+             IO.inspect({v1, u1}, label: "GOT vs EXPECTED")
+             raise "Path endpoint mismatch at 1: expected #{AST.to_string(u1)}, got #{AST.to_string(v1)}"
+          end
           {_i_name, i_var, _} = freshDim()
           check(Map.put(ctx, x, {:local, %AST.Interval{}, i_var}), b, appFormula(p, i_var))
 
         {%AST.Neutral{type: t_v}, t} ->
-          if not conv(t_v, t), do: raise "Type mismatch: expected #{AST.to_string(t)}, got #{AST.to_string(t_v)}"
+          if not conv(t_v, t) do
+            raise "Type mismatch: expected #{AST.to_string(t)}, got #{AST.to_string(t_v)}"
+          end
           :ok
 
         {%AST.PLam{body: f}, %AST.PathP{path: p, u0: u0, u1: u1}} when is_function(f) ->
-          # check endpoints
           v0 = f.(%AST.Dir{val: 0})
           v1 = f.(%AST.Dir{val: 1})
-          if not conv(v0, u0), do: raise "Path endpoint mismatch at 0: expected #{AST.to_string(u0)}, got #{AST.to_string(v0)}"
-          if not conv(v1, u1), do: raise "Path endpoint mismatch at 1: expected #{AST.to_string(u1)}, got #{AST.to_string(v1)}"
-          # check interior
+          if not conv(v0, u0) do
+             raise "Path endpoint mismatch at 0: expected #{AST.to_string(u0)}, got #{AST.to_string(v0)}"
+          end
+          if not conv(v1, u1) do
+             raise "Path endpoint mismatch at 1: expected #{AST.to_string(u1)}, got #{AST.to_string(v1)}"
+          end
           {i_name, i_var, _} = freshDim()
           check(Map.put(ctx, i_name, {:local, %AST.Interval{}, i_var}), f.(i_var), appFormula(p, i_var))
 
@@ -614,15 +865,23 @@ defmodule Per.Typechecker do
 
         {e, t} ->
           inferred = infer(ctx, e)
-          eqNf(inferred, t)
+          if not conv(inferred, t) do
+            raise "Check error: while checking #{AST.to_string(e)} against #{AST.to_string(t)}"
+          end
+          :ok
       end
     rescue
-      e -> raise "Check error: while checking #{AST.to_string(e0)} against #{AST.to_string(t0)}: #{inspect(e)}"
+      e ->
+        case e do
+          %RuntimeError{message: "Check error: " <> _} -> reraise e, __STACKTRACE__
+          _ ->
+            raise "Check error: while checking #{AST.to_string(e0)} against #{AST.to_string(t0)}: #{inspect(e)}"
+        end
     end
   end
 
   def infer(ctx, e) do
-    do_infer(ctx, e)
+    eval(do_infer(ctx, e), ctx)
   end
 
   defp do_infer(ctx, e) do
@@ -651,8 +910,8 @@ defmodule Per.Typechecker do
       %AST.Lam{name: x, domain: a, body: b} ->
         _ = extSet(infer(ctx, a))
         t = eval(a, ctx)
-        _ = infer(Map.put(ctx, x, {:local, t, %AST.Var{name: x}}), b)
-        %AST.Pi{name: x, domain: t, codomain: fn vx -> infer(Map.put(ctx, x, {:local, t, vx}), b) end}
+        tb = infer(Map.put(ctx, x, {:local, t, %AST.Var{name: x}}), b)
+        %AST.Pi{name: x, domain: a, codomain: readback(tb)}
 
       %AST.Empty{} -> %AST.Universe{level: 0}
       %AST.Unit{} -> %AST.Universe{level: 0}
@@ -666,7 +925,17 @@ defmodule Per.Typechecker do
           %AST.Pi{domain: t, codomain: g} ->
             check(ctx, x, t)
             g.(eval(x, ctx))
-          v -> raise "Expected Pi, got: #{inspect(v)}"
+
+          %AST.PartialP{type: t, phi: i} ->
+            check(ctx, x, isOne(i))
+            app(t, eval(x, ctx))
+
+          %AST.PathP{path: p_val} ->
+            check(ctx, x, %AST.Interval{})
+            appFormula(p_val, eval(x, ctx))
+
+          v ->
+            raise "Expected Pi or PathP, got: #{inspect(v)}"
         end
 
       %AST.Fst{expr: e} ->
@@ -726,8 +995,8 @@ defmodule Per.Typechecker do
         check(ctx, u, implv(%AST.Interval{}, partialv(t_val, r_val)))
         check(ctx, u0, t_val)
         # Check faces match at r=1
-        Enum.each(solve(r_val, 1), fn alpha ->
-           eqNf(eval(app(app(u, %AST.Interval{}), %AST.Refl{expr: %AST.Dir{val: 1}}), faceEnv(alpha, ctx)), eval(u0, faceEnv(alpha, ctx)))
+        Enum.each(safe_enum(r_val, "hcomp_solve"), fn alpha ->
+           eqNf(eval(app(app(eval(u, ctx), %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}}), faceEnv(alpha, ctx)), eval(u0, faceEnv(alpha, ctx)))
         end)
         t_val
 
@@ -755,16 +1024,15 @@ defmodule Per.Typechecker do
 
       %AST.AppFormula{left: e, right: i} ->
         case infer(ctx, e) do
-          %AST.PathP{path: p_val, u0: _, u1: _} ->
-            appFormula(p_val, eval(i, ctx))
+          %AST.PathP{path: p, u0: _, u1: _} ->
+            appFormula(eval(p, ctx), eval(i, ctx))
           t -> raise "Expected PathP type for formula application, got: #{inspect(t)}"
         end
 
       %AST.PLam{name: x, body: body} ->
         # PLam x body : Pi(I, \x -> infer body)
-        %AST.Pi{name: x, domain: %AST.Interval{}, codomain: fn r ->
-          infer(Map.put(ctx, x, {:local, %AST.Interval{}, r}), body)
-        end}
+        t = infer(Map.put(ctx, x, {:local, %AST.Interval{}, %AST.Var{name: x}}), body)
+        %AST.Pi{name: x, domain: %AST.Interval{}, codomain: readback(t)}
 
       %AST.Interval{} -> %AST.Universe{level: 0} # Interval is like a type
 
@@ -797,12 +1065,12 @@ defmodule Per.Typechecker do
       %AST.Pair{first: a, second: b} ->
         ta = infer(ctx, a)
         tb = infer(ctx, b)
-        # Infer non-dependent Sigma type
-        %AST.Sigma{domain: eval(ta, ctx), codomain: fn _ -> eval(tb, ctx) end}
+        # Infer non-dependent Sigma type. For dependent, we need more info.
+        %AST.Sigma{name: "_", domain: readback(ta), codomain: readback(tb)}
 
       %AST.System{map: ts} ->
         # checkOverlapping(ctx, ts)
-        %AST.PartialP{type: %AST.System{map: Map.new(Enum.map(ts, fn {face, term} -> {face, infer(ctx, term)} end))}, phi: eval_system_formula(ts)}
+        %AST.PartialP{type: %AST.System{map: Map.new(Enum.map(safe_enum(ts, "do_infer_Sys"), fn {face, term} -> {face, eval(infer(ctx, term), ctx)} end))}, phi: eval_system_formula(ts)}
 
       %AST.Sub{type: a, phi: i, u: u} ->
         _ = extSet(infer(ctx, a))
@@ -839,7 +1107,7 @@ defmodule Per.Typechecker do
   end
 
   defp eval_system_formula(ts) do
-    ts |> Map.keys() |> Enum.reduce(%AST.Dir{val: 0}, fn f, acc -> evalOr(acc, f) end)
+    getFormulaV(ts)
   end
 
   defp rec_unit(t) do
@@ -931,7 +1199,7 @@ defmodule Per.Typechecker do
       %AST.Partial{expr: e} -> %AST.Partial{expr: readback(e)}
       %AST.PartialP{type: t, phi: r} -> %AST.PartialP{type: readback(t), phi: readback(r)}
       %AST.System{map: xs} ->
-        %AST.System{map: Enum.map(xs, fn {face, term} -> {face, readback(term)} end)}
+        %AST.System{map: Map.new(Enum.map(xs, fn {face, term} -> {face, readback(term)} end))}
       %AST.Sub{type: a, phi: i, u: u} ->
         %AST.Sub{type: readback(a), phi: readback(i), u: readback(u)}
       %AST.Inc{type: t, phi: r} -> %AST.Inc{type: readback(t), phi: readback(r)}
@@ -952,6 +1220,21 @@ defmodule Per.Typechecker do
         %AST.IndW{a: readback(a), b: readback(b), motive: readback(m)}
       _ -> val
     end
+  end
+
+  defp upd_face(alpha, v) do
+    # alpha can be a map %{name => val} or a tuple {name, val} (from System keys)
+    face_map = case alpha do
+      m when is_map(m) and not is_struct(m) -> m
+      l when is_list(l) -> Map.new(l)
+      {n, v} -> %{n => v}
+      m when is_map(m) and is_struct(m, AST.System) -> m.map
+      m when is_map(m) and is_struct(m) -> Map.from_struct(m)
+      _ -> %{}
+    end
+    # Convert face map to ctx
+    face_ctx = Map.new(Enum.map(face_map, fn {name, val} -> {name, {:local, %AST.Interval{}, %AST.Dir{val: val}}} end))
+    eval(readback(v), face_ctx)
   end
 
   def check_module(%AST.Module{declarations: decls}, env) do

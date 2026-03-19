@@ -529,7 +529,7 @@ defmodule Per.Parser do
     case tokens do
       [{:left_paren, _, _}, {:ident, _, _, p}, divider, {:number, _, _, d}, {:right_paren, _, _} | rest]
       when (elem(divider, 0) == :defeq) or (elem(divider, 0) == :=) or (elem(divider, 0) == :operator and elem(divider, 3) == "=") ->
-        {:ok, {p, d}, rest}
+        {:ok, %{p => d}, rest}
       _ -> {:error, :invalid_face}
     end
   end
