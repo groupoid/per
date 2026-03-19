@@ -47,8 +47,8 @@ defmodule Per.Typechecker do
     val_x = case x do %AST.Dir{val: d} -> d; d when is_integer(d) -> d end
     case {k, val_x} do
       {%AST.Dir{val: y}, _} -> if val_x == y, do: [%{}], else: []
-      {%AST.Var{name: p}, _} -> [%{p => val_x}]
-      {%AST.Neutral{term: %AST.Var{name: p}}, _} -> [%{p => val_x}]
+      {%AST.Var{}, _} -> [%{k => val_x}]
+      {%AST.Neutral{}, _} -> [%{k => val_x}]
       {%AST.Neg{expr: n}, _} -> solve(n, 1 - val_x)
       {%AST.Or{left: f, right: g}, 1} -> union_faces(solve(f, 1), solve(g, 1))
       {%AST.And{left: f, right: g}, 0} -> union_faces(solve(f, 0), solve(g, 0))
@@ -146,11 +146,7 @@ defmodule Per.Typechecker do
   # --- Evaluation ---
 
   def eval(expr, ctx) do
-    res = do_eval(expr, ctx)
-    if is_function(res) do
-      IO.puts "CRITICAL eval: returned naked function for expr: #{inspect(expr)}"
-    end
-    res
+    do_eval(expr, ctx)
   end
 
   defp do_eval(expr, ctx) do
@@ -257,9 +253,8 @@ defmodule Per.Typechecker do
     case Map.get(ctx, x) do
       {:local, t, v} ->
         if is_struct(v, AST.Var), do: %AST.Neutral{term: v, type: t}, else: v
-      {:global, t, {:value, v}} ->
-        if is_struct(v, AST.Var), do: %AST.Neutral{term: v, type: t}, else: v
-      {:global, _val_t, {:exp, e}} -> eval(e, ctx)
+      {:global, _t, {:value, v}} -> v
+      {:global, _t, {:exp, e}} -> eval(e, ctx)
       nil ->
         case x do
           "0" -> %AST.Universe{level: 0} # Should probably be handled in lexer/parser
@@ -351,32 +346,38 @@ defmodule Per.Typechecker do
 
   defp appFormula(v, x) do
     case v do
+      %AST.HComp{phi: phi, u: u} ->
+        case x do
+          %AST.Dir{val: 1} ->
+            if phi == %AST.Dir{val: 1} do
+              app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
+            else
+              %AST.AppFormula{left: v, right: x}
+            end
+          _ -> %AST.AppFormula{left: v, right: x}
+        end
       %AST.Lam{body: func} when is_function(func) -> func.(x)
       %AST.PLam{body: func} when is_function(func) -> func.(x)
-      %AST.Neutral{term: term, type: %AST.PathP{path: p, u0: u0, u1: u1}} ->
-        case x do
-          %AST.Dir{val: 0} -> u0
-          %AST.Dir{val: 1} -> u1
-          _ ->
-            x_ast = case x do
-              %AST.Neutral{term: t} -> t
-              n when is_binary(n) -> %AST.Var{name: n}
-              _ -> x
-            end
-            %AST.Neutral{term: %AST.AppFormula{left: term, right: x_ast}, type: appFormula(p, x)}
-        end
       %AST.PartialP{type: t} -> appFormula(t, x)
       %AST.System{map: xs} ->
         xs_map = if is_struct(xs), do: xs.map, else: xs
         new_map = Map.new(Enum.map(xs_map, fn {face, term} -> {face, appFormula(term, x)} end))
         evalSystem(%{}, new_map)
       _ ->
-        x_ast = case x do
-          %AST.Neutral{term: t} -> t
-          n when is_binary(n) -> %AST.Var{name: n}
-          _ -> x
+        case x do
+          %AST.Dir{val: 0} -> 
+            try do
+              {_, u0, _} = extPathP(inferV(v))
+              u0
+            rescue _ -> %AST.AppFormula{left: v, right: x} end
+          %AST.Dir{val: 1} -> 
+            try do
+              {_, _, u1} = extPathP(inferV(v))
+              u1
+            rescue _ -> %AST.AppFormula{left: v, right: x} end
+          _ ->
+            %AST.AppFormula{left: v, right: x}
         end
-        %AST.AppFormula{left: v, right: x_ast}
     end
   end
 
@@ -407,10 +408,12 @@ defmodule Per.Typechecker do
 
     # Prune faces and evaluate terms in extended context
     results = Enum.flat_map(xs_map, fn {face, term} ->
-       # Normalize face to map
+       # Normalize and EVALUATE face keys
        alpha = case face do
-         m when is_map(m) and not is_struct(m) -> m
-         l when is_list(l) -> Map.new(l)
+         m when is_map(m) and not is_struct(m) -> 
+           Map.new(Enum.map(m, fn {name, val} -> {eval(%AST.Var{name: name}, ctx), val} end))
+         l when is_list(l) -> 
+           Map.new(Enum.map(l, fn {name, val} -> {eval(%AST.Var{name: name}, ctx), val} end))
          _ -> %{}
        end
        # If face contradicts ctx, prune it
@@ -418,9 +421,9 @@ defmodule Per.Typechecker do
          []
        else
          # NEW: Check if face is satisfied (fully contained in ctx)
-         beta = Enum.reject(alpha, fn {name, val} ->
-           case Map.get(ctx, name) do
-             {:local, _, %AST.Dir{val: v}} -> v == val
+         beta = Enum.reject(alpha, fn {key, val} ->
+           case key do
+             %AST.Dir{val: v} -> v == val
              _ -> false
            end
          end) |> Map.new()
@@ -489,7 +492,7 @@ defmodule Per.Typechecker do
       end
     rescue
       e ->
-        IO.puts "CONV CRASHED: #{inspect(e)}"
+        false
         reraise e, __STACKTRACE__
     end
   end
@@ -503,10 +506,26 @@ defmodule Per.Typechecker do
       {%AST.PLam{body: f}, %AST.PLam{body: g}} when is_function(f) and is_function(g) ->
         name = "i#{System.unique_integer([:positive])}"
         x = %AST.Neutral{term: %AST.Var{name: name}, type: %AST.Interval{}}
-        v1 = f.(x)
-        v2 = g.(x)
-        res = conv(v1, v2)
-        res
+        v1_eval = f.(x)
+        v2_eval = g.(x)
+        conv(v1_eval, v2_eval)
+
+      {%AST.And{}, _} -> 
+        Per.DNF.logic_eq(v1, v2)
+      {%AST.Or{}, _} -> 
+        Per.DNF.logic_eq(v1, v2)
+      {%AST.Neg{}, _} -> 
+        Per.DNF.logic_eq(v1, v2)
+      {%AST.Dir{}, _} -> 
+        Per.DNF.logic_eq(v1, v2)
+      {_, %AST.And{}} -> 
+        Per.DNF.logic_eq(v1, v2)
+      {_, %AST.Or{}} -> 
+        Per.DNF.logic_eq(v1, v2)
+      {_, %AST.Neg{}} -> 
+        Per.DNF.logic_eq(v1, v2)
+      {_, %AST.Dir{}} -> 
+        Per.DNF.logic_eq(v1, v2)
 
       {f, %AST.PLam{body: g}} when is_function(g) ->
         x = %AST.Neutral{term: %AST.Var{name: "j#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
@@ -515,14 +534,7 @@ defmodule Per.Typechecker do
       {%AST.PLam{body: f}, g} when is_function(f) ->
         name = "j#{System.unique_integer([:positive])}"
         x = %AST.Neutral{term: %AST.Var{name: name}, type: %AST.Interval{}}
-        v1 = f.(x)
-        v2 = appFormula(g, x)
-        IO.puts "> conv_match PLam vs any"
-        IO.inspect(v1, label: "  V1 (PLam body)")
-        IO.inspect(v2, label: "  V2 (appFormula)")
-        res = conv(v1, v2)
-        IO.puts "> conv_match PLam body res: #{res}"
-        res
+        conv(f.(x), appFormula(g, x))
 
       {f, %AST.Lam{body: g, domain: dom}} ->
         x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: dom}
@@ -543,40 +555,47 @@ defmodule Per.Typechecker do
 
 
       {%Per.AST.System{map: ts1}, %Per.AST.System{map: ts2}} ->
-        # Pointwise conversion on common faces
-        Map.keys(ts1) == Map.keys(ts2) && Enum.all?(ts1, fn {face, v1} ->
-          conv(v1, Map.get(ts2, face))
+        res1 = Enum.all?(ts1, fn {face, v1} -> 
+          res = conv(v1, upd_val(face, %AST.System{map: ts2}))
+          if not res do
+            IO.puts "DEBUG: System mutual reduction mismatch (Side 1)!"
+            IO.puts "  Face: #{inspect(face)}"
+            IO.puts "  V1: #{inspect(v1)}"
+            IO.puts "  V2_reduced: #{inspect(upd_val(face, %AST.System{map: ts2}))}"
+          end
+          res
         end)
+        res2 = Enum.all?(ts2, fn {face, v2} -> 
+          res = conv(v2, upd_val(face, %AST.System{map: ts1}))
+          if not res do
+            IO.puts "DEBUG: System mutual reduction mismatch (Side 2)!"
+            IO.puts "  Face: #{inspect(face)}"
+            IO.puts "  V2: #{inspect(v2)}"
+            IO.puts "  V1_reduced: #{inspect(upd_val(face, %AST.System{map: ts1}))}"
+          end
+          res
+        end)
+        res1 && res2
+        
 
       {%Per.AST.System{map: ts}, v} ->
-        # System reduction: v must match all components where they're defined
-        Enum.all?(ts, fn {face, v_face} ->
-          conv(v_face, upd_val(face, v))
-        end)
+        Enum.all?(ts, fn {face, v_face} -> conv(upd_val(face, v), v_face) end)
       {v, %Per.AST.System{map: ts}} ->
-        Enum.all?(ts, fn {face, v_face} ->
-          conv(upd_val(face, v), v_face)
-        end)
+        Enum.all?(ts, fn {face, v_face} -> conv(upd_val(face, v), v_face) end)
 
       {%AST.HComp{type: t1, phi: r1, u: u1, u0: v1}, %AST.HComp{type: t2, phi: r2, u: u2, u0: v2}} ->
-        conv(t1, t2) && conv(r1, r2) && conv(u1, u2) && conv(v1, v2)
+        res_t = conv(t1, t2)
+        res_r = conv(r1, r2)
+        res_u = conv(u1, u2)
+        res_v = conv(v1, v2)
+        if not (res_t and res_r and res_u and res_v) do
+           IO.puts "DEBUG: HComp field mismatch!"
+           IO.puts "  T: #{res_t}, R: #{res_r}, U: #{res_u}, V: #{res_v}"
+        end
+        res_t && res_r && res_u && res_v
 
       {%AST.Transp{path: p1, phi: i1}, %AST.Transp{path: p2, phi: i2}} ->
         conv(p1, p2) && conv(i1, i2)
-
-      {%AST.HComp{phi: r, u: u, u0: u0}, v} ->
-        # Huber: hcomp A φ u u₀ = u i 1=1 if φ = 1
-        res_u0 = conv(u0, v)
-        res_u0 && Enum.all?(solve(r, 1), fn face ->
-          v_face = eval(app(u, %AST.Dir{val: 1}), faceEnv(face, %{}))
-          conv(v_face, upd_val(face, v))
-        end)
-      {v, %AST.HComp{phi: r, u: u, u0: u0}} ->
-        res_u0 = conv(u0, v)
-        res_u0 && Enum.all?(solve(r, 1), fn face ->
-           v_face = eval(app(u, %AST.Dir{val: 1}), faceEnv(face, %{}))
-           conv(upd_val(face, v), v_face)
-        end)
 
       {%AST.Pi{domain: a, codomain: f}, %AST.Pi{domain: b, codomain: g}} ->
         x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: a}
@@ -668,9 +687,6 @@ defmodule Per.Typechecker do
     if conv(v1, v2) do
       :ok
     else
-      IO.puts "eqNf MISMATCH"
-      IO.inspect(v1, label: "  V1")
-      IO.inspect(v2, label: "  V2")
       raise "Inference error: terms not convertible: #{AST.to_string(v1)} and #{AST.to_string(v2)}"
     end
   end
@@ -894,7 +910,6 @@ defmodule Per.Typechecker do
         case e do
           %RuntimeError{message: "Check error: " <> _} -> reraise e, __STACKTRACE__
           _ ->
-            IO.puts Exception.format(:error, e, __STACKTRACE__)
             raise "Check error: while checking #{AST.to_string(e0)} against #{AST.to_string(t0)}: #{inspect(e)}"
         end
     end
@@ -1016,14 +1031,14 @@ defmodule Per.Typechecker do
         check(ctx, u0, t_val)
         # Check faces match at r=1
         Enum.each(solve(r_val, 1), fn alpha ->
-           u_v = eval(u, ctx)
-           u1_v = case t_val do
-             %AST.Pi{} -> app(app(u_v, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
-             %AST.Sigma{} -> app(app(u_v, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
-             %AST.PathP{} -> app(app(u_v, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
-             _ -> app(u_v, %AST.Dir{val: 1})
+           face_ctx = faceEnv(alpha, ctx)
+           u0_v = case t_val do
+             %AST.Pi{} -> app(app(eval(u, face_ctx), %AST.Dir{val: 0}), %AST.Refl{expr: %AST.Dir{val: 1}})
+             %AST.Sigma{} -> app(app(eval(u, face_ctx), %AST.Dir{val: 0}), %AST.Refl{expr: %AST.Dir{val: 1}})
+             %AST.PathP{} -> app(app(eval(u, face_ctx), %AST.Dir{val: 0}), %AST.Refl{expr: %AST.Dir{val: 1}})
+             _ -> app(eval(u, face_ctx), %AST.Dir{val: 0})
            end
-           eqNf(eval(u1_v, faceEnv(alpha, %{})), eval(u0, faceEnv(alpha, ctx)))
+           eqNf(u0_v, eval(u0, face_ctx))
         end)
         t_val
 
@@ -1251,7 +1266,21 @@ defmodule Per.Typechecker do
 
   defp do_upd_val(face, v) do
     case v do
-      %AST.Var{} -> v
+      %AST.Var{name: n} -> 
+        key_neutral = %AST.Neutral{term: v, type: %AST.Interval{}}
+        cond do
+          Map.has_key?(face, v) -> %AST.Dir{val: Map.get(face, v)}
+          Map.has_key?(face, key_neutral) -> %AST.Dir{val: Map.get(face, key_neutral)}
+          Map.has_key?(face, n) -> %AST.Dir{val: Map.get(face, n)}
+          true -> v
+        end
+      %AST.Neutral{term: t = %AST.Var{name: n}, type: %AST.Interval{}} ->
+        cond do
+          Map.has_key?(face, v) -> %AST.Dir{val: Map.get(face, v)}
+          Map.has_key?(face, t) -> %AST.Dir{val: Map.get(face, t)}
+          Map.has_key?(face, n) -> %AST.Dir{val: Map.get(face, n)}
+          true -> v
+        end
       %AST.Neutral{term: t, type: ty} -> %AST.Neutral{term: do_upd_val(face, t), type: do_upd_val(face, ty)}
       %AST.Pi{name: x, domain: a, codomain: b} -> %AST.Pi{name: x, domain: do_upd_val(face, a), codomain: b}
       %AST.Sigma{name: x, domain: a, codomain: b} -> %AST.Sigma{name: x, domain: do_upd_val(face, a), codomain: b}
@@ -1271,9 +1300,27 @@ defmodule Per.Typechecker do
           l when is_list(l) -> Map.new(l)
           _ -> %{}
         end
-        # Apply face recursively to terms and faces
-        new_map = Map.new(Enum.map(ts_map, fn {alpha, term} -> {alpha, do_upd_val(face, term)} end))
-        evalSystem(%{}, new_map)
+        # Correct System restriction: 
+        # 1. Filter out faces incompatible with 'face'
+        # 2. For compatible faces, remove the common assignments (already in 'face')
+        restricted_map = Enum.reduce(ts_map, %{}, fn {alpha, term}, acc ->
+          # check compatibility: if alpha and face assign different values to same var, they are incompatible
+          incompatible = Enum.any?(face, fn {k, v} -> 
+             av = Map.get(alpha, k)
+             av != nil and av != v
+          end)
+          if incompatible do
+            acc
+          else
+            # remove redundant assignments from alpha
+            new_alpha = Map.drop(alpha, Map.keys(face))
+            Map.put(acc, new_alpha, do_upd_val(face, term))
+          end
+        end)
+        evalSystem(%{}, restricted_map)
+      %AST.And{left: x, right: y} -> evalAnd(do_upd_val(face, x), do_upd_val(face, y))
+      %AST.Or{left: x, right: y} -> evalOr(do_upd_val(face, x), do_upd_val(face, y))
+      %AST.Neg{expr: e} -> negFormula(do_upd_val(face, e))
       %AST.Dir{val: d} -> %AST.Dir{val: d}
       %AST.Universe{level: l} -> %AST.Universe{level: l}
       _ -> v
@@ -1313,3 +1360,4 @@ defmodule Per.Typechecker do
     end)
   end
 end
+# Placeholder for next chunk

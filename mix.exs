@@ -4,7 +4,7 @@ defmodule Per.MixProject do
   def project do
     [
       app: :per,
-      version: "5.3.18",
+      version: "5.3.19",
       description: "The Per Programming Language",
       deps: deps(),
       package: package()
@@ -12,7 +12,7 @@ defmodule Per.MixProject do
   end
 
   def application do
-    [ extra_applications: [ :logger ] ]
+    [extra_applications: [:logger]]
   end
 
   def deps do
@@ -30,5 +30,4 @@ defmodule Per.MixProject do
       links: %{"GitHub" => "https://github.com/groupoid/per"}
     ]
   end
-
 end

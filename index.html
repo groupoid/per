@@ -53,7 +53,7 @@
         </section>
 
         <section>
-            <h2>Constructions of Natural Numbers</h2>
+            <h2>Constructive Natural Numbers</h2>
             <p style="text-align: center; margin-bottom: 2rem;">Comparison of constructive natural numbers: structural vs. homotopical representations.</p>
             <div class="grid-2">
                 <div class="package-card">
@@ -89,20 +89,36 @@ def 𝟎⟶ℕ (C : ℕ → U) (f : 𝟎 → ℕ) : C zero → C (sup 𝟐 ℕ-c
         </section>
 
         <section>
-            <h2>Self Aware Core</h2>
+            <h2>Self Awareness</h2>
             <div class="grid-2">
                 <div class="product-card">
-                    <h3>Internalized Model</h3>
+                    <h3>Internalization</h3>
                     <p>Per is designed to be self-hosting in its logic. The core constructs are represented within the language itself, allowing for proofs about the typechecker's own behaviors and properties.</p>
                     <pre class="code-snippet">
-def internalizing : MLTT-73
+def Internalizing : MLTT-73
  := ( Pi, Π-lambda, Π-apply, Π-β, Π-η,
       Sigma, pair, pr₁, pr₂, Σ-β₁, Σ-β₂, Σ-η,
       Path-1, idp-1, J-1, J-β, ★ )</pre>
                 </div>
                 <div class="product-card">
-                    <h3>Foundational Focus</h3>
-                    <p>Per excludes high-level sugar to maintain a lean, provable core. It leverages <b>Judgmental Equality</b> and <b>Strong Normalization</b>, ensuring that every well-typed term reduces to a unique normal form, even in the presence of universes and well-founded types.</p>
+                    <h3>Groupoid Interpretation</h3>
+                    <p>This Hofmann–Streicher groupoid model remains the classical starting point for understanding how
+                       type theory can carry intrinsic homotopical or higher-categorical content, even without explicit homotopy axioms.</p>
+                    <pre class="code-snippet">
+def CatGroupoid (X : U) (G : isGroupoid X)
+  : isCatGroupoid (PathCat X)
+ := ( idp X,
+      comp-Path X,
+      G,
+      sym X,
+      comp-inv-Path⁻¹ X,
+      comp-inv-Path X,
+      comp-Path-left X,
+      comp-Path-right X,
+      comp-Path-assoc X,
+      star
+    )
+</pre>
                 </div>
             </div>
         </section>
