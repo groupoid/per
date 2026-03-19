@@ -524,35 +524,69 @@ defmodule Per.Typechecker do
   def hcomp(t, r, u, u0) do
     case {t, r} do
       {_, %AST.Dir{val: 1}} ->
-        # OCaml: app (app (u, vone), VRef vone)
-        # Note: OCaml VRef corresponds to our Refl or similar? 
-        # check.ml: | VRef v -> VApp (VApp (VId (inferV v), v), v)
         app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
 
       {%AST.Pi{domain: dom, codomain: cod}, _} ->
-        {_i, _x, _v} = freshDim()
-        # Similar to OCaml: λ (x : A), hcomp (B x) φ (λ (i : I), [φ → u i 1=1 x]) (u₀ x)
+        # λ (x : A), hcomp (B x) φ (λ (i : I), [φ → u i 1=1 x]) (u₀ x)
         %AST.Lam{name: "x", domain: dom, body: fn x ->
           hcomp(cod.(x), r, %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
-            # Border logic simplified
-            app(app(u, i), x)
+            %AST.System{map: %{r => app(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), x)}}
           end}, app(u0, x))
+        end}
+
+      {%AST.Sigma{domain: dom, codomain: cod}, _} ->
+        # (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 1, comp (λ i, B (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 i)) φ (λ (k : I), [(r = 1) → (u k 1=1).2]) u₀.2)
+        v1_hfill = fn j -> hfill(dom, r, %AST.Lam{name: "k", domain: %AST.Interval{}, body: fn k ->
+          %AST.System{map: %{r => vfst(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}}))}}
+        end}, vfst(u0), j) end
+        
+        v1_final = v1_hfill.(%AST.Dir{val: 1})
+        
+        v2 = comp(fn i -> cod.(v1_hfill.(i)) end, r, %AST.Lam{name: "k", domain: %AST.Interval{}, body: fn k ->
+          %AST.System{map: %{r => vsnd(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}}))}}
+        end}, vsnd(u0))
+        
+        %AST.Pair{first: v1_final, second: v2}
+
+      {%AST.PathP{path: t_path, u0: v, u1: w}, _} ->
+        # <j> hcomp (A @ j) (λ (i : I), [(r = 1) → u i 1=1, (j = 0) → v, (j = 1) → w]) (u₀ @ j)
+        %AST.PLam{name: "j", body: fn j ->
+          r_prime = evalOr(r, evalOr(j, negFormula(j)))
+          hcomp(appFormula(t_path, j), r_prime, %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
+            %AST.System{map: %{
+              r => appFormula(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), j),
+              negFormula(j) => v,
+              j => w
+            }}
+          end}, appFormula(u0, j))
         end}
 
       _ -> %AST.HComp{type: t, phi: r, u: u, u0: u0}
     end
   end
 
-  def comp(t, r, u, u0) do
-    {i, _x, _v} = freshDim()
-    # OCaml comp implementation
-    hcomp(t.(%AST.Dir{val: 1}), r, %AST.Lam{name: i, domain: %AST.Interval{}, body: fn _i_val ->
-      u # Simplified
-    end}, transport(%AST.PLam{name: "j", body: fn _j -> t.(%AST.Dir{val: 0}) end}, %AST.Dir{val: 0}, u0))
+  def hfill(t, r, u, u0, j) do
+    # hcomp t ((-j) \/ r) (\ i -> [r -> u (i /\ j) 1=1, (j=0) -> u0]) u0
+    hcomp(t, evalOr(negFormula(j), r), %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
+      %AST.System{map: %{
+        r => app(app(u, evalAnd(i, j)), %AST.Refl{expr: %AST.Dir{val: 1}}),
+        negFormula(j) => u0
+      }}
+    end}, u0)
   end
 
-  def transFill(p, phi, _u0, j) do
-    %AST.Transp{path: p, phi: evalOr(phi, negFormula(j))}
+  def comp(t, r, u, u0) do
+    # hcomp (t 1) r (\ i -> transp (\ j -> t (i \/ j)) i (u i 1=1)) (transp (\ i -> t i) 0 u0)
+    hcomp(t.(%AST.Dir{val: 1}), r, %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
+      u_val = app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}})
+      path = %AST.PLam{name: "j", body: fn j -> t.(evalOr(i, j)) end}
+      transport(path, i, u_val)
+    end}, transport(%AST.PLam{name: "i", body: fn i -> t.(i) end}, %AST.Dir{val: 0}, u0))
+  end
+
+  def transFill(p, phi, u0, j) do
+    # transp (\ i -> p (i /\ j)) (phi \/ -j) u0
+    transport(%AST.PLam{name: "i", body: fn i -> appFormula(p, evalAnd(i, j)) end}, evalOr(phi, negFormula(j)), u0)
   end
 
   # --- Type Checking and Inference ---
