@@ -3,9 +3,10 @@ defmodule Mix.Tasks.Per.Test do
 
   @shortdoc "Run Per tests"
   def run(args) do
-    {opts, _, _} = OptionParser.parse(args, switches: [syntax: :string])
+    {opts, _, _} = OptionParser.parse(args, switches: [syntax: :string, trace: :boolean])
     syntax_str = Keyword.get(opts, :syntax, "lean")
     syntax = String.to_atom(syntax_str)
+    trace = Keyword.get(opts, :trace, false)
 
     IO.puts("Running Per tests [#{syntax_str}]...")
 
@@ -28,7 +29,7 @@ defmodule Mix.Tasks.Per.Test do
         IO.write("  Testing #{file}... ")
         source = File.read!(file)
 
-        case Per.Compiler.compile_module(source, [source_path: file, env: base_env, syntax: syntax] ++ opts) do
+        case Per.Compiler.compile_module(source, [source_path: file, env: base_env, syntax: syntax, trace: trace] ++ opts) do
           {:ok, mod, _bin} ->
             IO.puts("OK (#{mod})")
             :ok

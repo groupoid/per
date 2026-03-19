@@ -15,6 +15,8 @@ defmodule Per.Compiler do
       _ -> Per.Parser
     end
 
+    if Keyword.get(opts, :trace, false), do: Prof.start()
+
     tokens = lexer.lex(source)
     with resolved <- Layout.resolve(tokens),
          {:ok, ast, _rest} <- parser.parse(resolved) do
@@ -36,6 +38,11 @@ defmodule Per.Compiler do
         else
           :ok
         end
+
+      if Keyword.get(opts, :trace, false) do
+        Prof.stop()
+        Prof.print()
+      end
 
       if typecheck_res == :ok and Keyword.get(opts, :check_only, false) do
         {:ok, desugared.name, :check_only}

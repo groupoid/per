@@ -39,61 +39,61 @@ defmodule Per.DNF do
   end
 
   def ext_or(v) do
-    res = case v do
-      %Per.AST.Dir{val: 0} -> MapSet.new()
-      %Per.AST.Dir{val: 1} -> MapSet.new([%{}])
-      %Per.AST.Or{left: x, right: y} -> MapSet.union(ext_or(x), ext_or(y))
-      %Per.AST.And{} -> ext_and(v)
-      %Per.AST.Neg{expr: %Per.AST.Neg{expr: e}} -> ext_or(e)
-      %Per.AST.Neg{expr: %Per.AST.And{}} -> ext_and(v)
-      %Per.AST.Neg{expr: %Per.AST.Or{}} -> ext_and(v)
-      %Per.AST.Neg{expr: %Per.AST.Neutral{term: t}} -> ext_or(%Per.AST.Neg{expr: t})
-      %Per.AST.Neg{expr: %Per.AST.Var{name: name}} -> MapSet.new([Map.new([{primitive(name), 0}])])
-      %Per.AST.Neutral{term: t} -> ext_or(t)
-      %Per.AST.Var{name: name} -> MapSet.new([Map.new([{primitive(name), 1}])])
-      _ -> MapSet.new([Map.new([{primitive(v), 1}])])
-    end
-    res
+    Prof.measure("ext_or", fn ->
+      case v do
+        %Per.AST.Dir{val: 0} -> MapSet.new()
+        %Per.AST.Dir{val: 1} -> MapSet.new([%{}])
+        %Per.AST.Or{left: x, right: y} -> MapSet.union(ext_or(x), ext_or(y))
+        %Per.AST.And{} -> ext_and(v)
+        %Per.AST.Neg{expr: %Per.AST.Neg{expr: e}} -> ext_or(e)
+        %Per.AST.Neg{expr: %Per.AST.And{}} -> ext_and(v)
+        %Per.AST.Neg{expr: %Per.AST.Or{}} -> ext_and(v)
+        %Per.AST.Neg{expr: %Per.AST.Neutral{term: t}} -> ext_or(%Per.AST.Neg{expr: t})
+        %Per.AST.Neg{expr: %Per.AST.Var{name: name}} -> MapSet.new([Map.new([{primitive(name), 0}])])
+        %Per.AST.Neutral{term: t} -> ext_or(t)
+        %Per.AST.Var{name: name} -> MapSet.new([Map.new([{primitive(name), 1}])])
+        _ -> MapSet.new([Map.new([{primitive(v), 1}])])
+      end
+    end)
   end
 
   def ext_and(v) do
-    res = case v do
-      %Per.AST.And{left: x, right: y} ->
-        xs = ext_or(x)
-        ys = ext_or(y)
-        for x_face <- xs, y_face <- ys, into: MapSet.new() do
-          Map.merge(x_face, y_face)
-        end
-      %Per.AST.Neg{expr: %Per.AST.And{left: x, right: y}} -> 
-        MapSet.union(ext_or(%Per.AST.Neg{expr: x}), ext_or(%Per.AST.Neg{expr: y}))
-      %Per.AST.Neg{expr: %Per.AST.Or{left: x, right: y}} -> 
-        xs = ext_or(%Per.AST.Neg{expr: x})
-        ys = ext_or(%Per.AST.Neg{expr: y})
-        for x_face <- xs, y_face <- ys, into: MapSet.new() do
-          Map.merge(x_face, y_face)
-        end
-      %Per.AST.Neg{expr: %Per.AST.Neutral{term: t}} -> ext_and(%Per.AST.Neg{expr: t})
-      %Per.AST.Neutral{term: t} -> ext_and(t)
-      _ -> ext_or(v)
-    end
-    res
+    Prof.measure("ext_and", fn ->
+      case v do
+        %Per.AST.And{left: x, right: y} ->
+          unions(ext_or(x), ext_or(y))
+        %Per.AST.Neg{expr: %Per.AST.And{left: x, right: y}} -> 
+          MapSet.union(ext_or(%Per.AST.Neg{expr: x}), ext_or(%Per.AST.Neg{expr: y}))
+        %Per.AST.Neg{expr: %Per.AST.Or{left: x, right: y}} -> 
+          unions(ext_or(%Per.AST.Neg{expr: x}), ext_or(%Per.AST.Neg{expr: y}))
+        %Per.AST.Neg{expr: %Per.AST.Neutral{term: t}} -> ext_and(%Per.AST.Neg{expr: t})
+        %Per.AST.Neutral{term: t} -> ext_and(t)
+        _ -> ext_or(v)
+      end
+    end)
   end
 
   def uniq(t) do
-    super_fn = fn x, y ->
-      x != y and Enum.all?(y, fn {k, v} -> Map.get(x, k) == v end)
-    end
+    Prof.measure("uniq", fn ->
+      super_fn = fn x, y ->
+        x != y and Map.merge(x, y) == x
+      end
 
-    t
-    |> Enum.filter(fn x ->
-      not Enum.any?(t, fn other -> super_fn.(x, other) end)
+      t
+      |> Enum.filter(fn x ->
+        not Enum.any?(t, fn other -> super_fn.(x, other) end)
+      end)
+      |> MapSet.new()
     end)
-    |> MapSet.new()
   end
 
   def unions(t1, t2) do
-    res = for c1 <- t1, c2 <- t2, do: Map.merge(c1, c2)
-    uniq(MapSet.new(res))
+    Prof.measure("unions", fn ->
+      res = for c1 <- t1, c2 <- t2,
+                match?({:ok, _}, meet(c1, c2)),
+                do: elem(meet(c1, c2), 1)
+      uniq(MapSet.new(res))
+    end)
   end
 
   def neg_conjunction(c) do
