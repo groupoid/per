@@ -67,7 +67,6 @@ defmodule Per.Compiler do
           end
 
         eval_val = Per.Typechecker.eval(desugared_v.expr, acc.ctx)
-        if desugared_v.name == "∂", do: IO.inspect(eval_val, label: "VALUE OF ∂ IN populate_local_env")
 
         %{
           acc

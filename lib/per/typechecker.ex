@@ -43,65 +43,6 @@ defmodule Per.Typechecker do
 
   defp isOne(i), do: idv(%AST.Interval{}, %AST.Dir{val: 1}, i)
   
-  defp solve(k, x) do
-    val_x = case x do %AST.Dir{val: d} -> d; d when is_integer(d) -> d end
-    case {k, val_x} do
-      {%AST.Dir{val: y}, _} -> if val_x == y, do: [%{}], else: []
-      {%AST.Var{}, _} -> [%{k => val_x}]
-      {%AST.Neutral{}, _} -> [%{k => val_x}]
-      {%AST.Neg{expr: n}, _} -> solve(n, 1 - val_x)
-      {%AST.Or{left: f, right: g}, 1} -> union_faces(solve(f, 1), solve(g, 1))
-      {%AST.And{left: f, right: g}, 0} -> union_faces(solve(f, 0), solve(g, 0))
-      {%AST.Or{left: f, right: g}, 0} -> meets(solve(f, 0), solve(g, 0))
-      {%AST.And{left: f, right: g}, 1} -> meets(solve(f, 1), solve(g, 1))
-      _ ->
-        case k do
-          %AST.App{} -> [] # Should have been reduced
-          _ -> []
-        end
-    end
-  end
-
-  defp getFaceV(face) do
-    # face can be a map %{name => val} or a tuple {name, val}
-    face_list = case face do
-      m when is_map(m) -> Map.to_list(m)
-      {n, v} -> [{n, v}]
-      _ -> []
-    end
-    Enum.reduce(face_list, %AST.Dir{val: 1}, fn {name, val}, acc ->
-      atom = %AST.Var{name: name}
-      term = if val == 1, do: atom, else: %AST.Neg{expr: atom}
-      evalAnd(acc, term)
-    end)
-  end
-
-  defp getFormulaV(map) do
-    if is_struct(map) do
-      IO.puts "DEBUG getFormulaV: input is struct: #{inspect(map.__struct__)}"
-    end
-    Enum.reduce(map, %AST.Dir{val: 0}, fn {face, _val}, acc ->
-      evalOr(getFaceV(face), acc)
-    end)
-  end
-
-  defp union_faces(xs, ys), do: Enum.uniq(xs ++ ys)
-
-  defp meet(f1, f2) do
-    try do
-      res = Map.merge(f1, f2, fn _k, v1, v2 ->
-        if v1 == v2, do: v1, else: throw(:incompatible)
-      end)
-      {:ok, res}
-    catch
-      :incompatible -> :error
-    end
-  end
-
-  defp meets(xs, ys) do
-    for x <- xs, y <- ys, match?({:ok, _}, meet(x, y)), do: elem(meet(x, y), 1)
-    |> Enum.uniq()
-  end
 
   defp faceEnv(alpha, ctx) do
     # Normalize face to map/list of pairs
@@ -121,7 +62,7 @@ defmodule Per.Typechecker do
   end
 
   defp border(xs, v), do: %AST.System{map: Map.new(Enum.map(xs, fn alpha -> {alpha, upd(alpha, v)} end))}
-  defp partialv(t, r), do: %AST.PartialP{type: %AST.System{map: border(solve(r, 1), t).map}, phi: r}
+  defp partialv(t, r), do: %AST.PartialP{type: %AST.System{map: border(Per.DNF.solve(r, 1), t).map}, phi: r}
 
   defp upd(alpha, v), do: upd_val(alpha, v)
 
@@ -250,7 +191,7 @@ defmodule Per.Typechecker do
   end
 
   defp getRho(ctx, x) do
-    case Map.get(ctx, x) do
+    res = case Map.get(ctx, x) do
       {:local, t, v} ->
         if is_struct(v, AST.Var), do: %AST.Neutral{term: v, type: t}, else: v
       {:global, _t, {:value, v}} -> v
@@ -262,6 +203,7 @@ defmodule Per.Typechecker do
           _ -> %AST.Var{name: x}
         end
     end
+    res
   end
 
   defp safe_enum(e, _label), do: e
@@ -388,6 +330,12 @@ defmodule Per.Typechecker do
 
 
   defp upd_val(face, v) do
+    if is_map(face) and not is_struct(face) do
+       if Enum.any?(face, fn {k, _} -> is_struct(k) end) do
+         raise "LEAK DETECTED in upd_val! Face: #{inspect(face)}"
+       end
+    end
+
     # Normalize face to map
     alpha = case face do
       m when is_map(m) and not is_struct(m) -> m
@@ -398,7 +346,6 @@ defmodule Per.Typechecker do
   end
 
   defp evalSystem(ctx, xs) do
-    # Normalize xs to a plain map (not a struct)
     xs_map = case xs do
       m when is_map(m) and not is_struct(m) -> m
       m when is_struct(m, AST.System) -> m.map
@@ -406,54 +353,21 @@ defmodule Per.Typechecker do
       _ -> %{}
     end
 
-    # Prune faces and evaluate terms in extended context
-    results = Enum.flat_map(xs_map, fn {face, term} ->
-       # Normalize and EVALUATE face keys
-       alpha = case face do
-         m when is_map(m) and not is_struct(m) -> 
-           Map.new(Enum.map(m, fn {name, val} -> {eval(%AST.Var{name: name}, ctx), val} end))
-         l when is_list(l) -> 
-           Map.new(Enum.map(l, fn {name, val} -> {eval(%AST.Var{name: name}, ctx), val} end))
-         _ -> %{}
-       end
-       # If face contradicts ctx, prune it
-       if face_contradicts?(alpha, ctx) do
-         []
-       else
-         # NEW: Check if face is satisfied (fully contained in ctx)
-         beta = Enum.reject(alpha, fn {key, val} ->
-           case key do
-             %AST.Dir{val: v} -> v == val
-             _ -> false
-           end
-         end) |> Map.new()
-
-         v = eval(term, faceEnv(alpha, ctx))
-         [{beta, v}] # Return face simplified relative to ctx
-       end
+    ts_list = Enum.flat_map(xs_map, fn {face_map, term} ->
+      Enum.map(face_map, fn {n, d} -> Per.DNF.solve(eval(%AST.Var{name: n}, ctx), d) end)
+      |> Enum.reduce([%{}], fn faces, acc -> Per.DNF.meets(acc, faces) end)
+      |> Enum.map(fn beta -> {beta, upd_val(beta, eval(term, faceEnv(beta, ctx)))} end)
     end)
-    ts_prime = Map.new(results)
 
-    # Reduction: if there's an empty face %{}, it's the result
-    if Map.has_key?(ts_prime, %{}) do
-      Map.get(ts_prime, %{})
-    else
-      %AST.System{map: ts_prime}
-    end
-  end
 
-  defp face_contradicts?(face, ctx) do
-    alpha = case face do
-      m when is_map(m) and not is_struct(m) -> m
-      l when is_list(l) -> l
-      _ -> []
+    case Enum.find(ts_list, fn {face, _} -> map_size(face) == 0 end) do
+      {_face, val} -> val
+      nil ->
+        final_list = Enum.reject(ts_list, fn {alpha, _} ->
+          Enum.any?(ts_list, fn {beta, _} -> alpha != beta and Map.merge(alpha, beta) == alpha end)
+        end)
+        %AST.System{map: Map.new(final_list)}
     end
-    Enum.any?(alpha, fn {name, val} ->
-      case Map.get(ctx, name) do
-        {:local, _, %AST.Dir{val: v}} -> v != val
-        _ -> false
-      end
-    end)
   end
 
   defp evalOuc(v), do: %AST.Ouc{expr: v}
@@ -496,8 +410,16 @@ defmodule Per.Typechecker do
         reraise e, __STACKTRACE__
     end
   end
+  defp is_formula(v) do
+    match?(%AST.Or{}, v) or match?(%AST.And{}, v) or match?(%AST.Neg{}, v) or match?(%AST.Dir{}, v) or
+    match?(%AST.Var{}, v) or match?(%AST.Neutral{type: %AST.Interval{}}, v)
+  end
+
   defp conv_match(v1, v2) do
-    case {v1, v2} do
+    if is_formula(v1) and is_formula(v2) do
+      Per.DNF.logic_eq(v1, v2)
+    else
+      case {v1, v2} do
       {%AST.Lam{body: f}, %AST.Lam{body: g}} ->
         name = "x#{System.unique_integer([:positive])}"
         x = %AST.Neutral{term: %AST.Var{name: name}, type: %AST.Hole{}}
@@ -554,28 +476,14 @@ defmodule Per.Typechecker do
       {%AST.Pair{first: a, second: b}, %AST.Pair{first: c, second: d}} -> conv(a, c) && conv(b, d)
 
 
-      {%Per.AST.System{map: ts1}, %Per.AST.System{map: ts2}} ->
-        res1 = Enum.all?(ts1, fn {face, v1} -> 
-          res = conv(v1, upd_val(face, %AST.System{map: ts2}))
-          if not res do
-            IO.puts "DEBUG: System mutual reduction mismatch (Side 1)!"
-            IO.puts "  Face: #{inspect(face)}"
-            IO.puts "  V1: #{inspect(v1)}"
-            IO.puts "  V2_reduced: #{inspect(upd_val(face, %AST.System{map: ts2}))}"
-          end
-          res
-        end)
-        res2 = Enum.all?(ts2, fn {face, v2} -> 
-          res = conv(v2, upd_val(face, %AST.System{map: ts1}))
-          if not res do
-            IO.puts "DEBUG: System mutual reduction mismatch (Side 2)!"
-            IO.puts "  Face: #{inspect(face)}"
-            IO.puts "  V2: #{inspect(v2)}"
-            IO.puts "  V1_reduced: #{inspect(upd_val(face, %AST.System{map: ts1}))}"
-          end
-          res
-        end)
-        res1 && res2
+       {%Per.AST.System{map: ts1}, %Per.AST.System{map: ts2}} ->
+         res1 = Enum.all?(ts1, fn {face, v1} -> 
+           conv(v1, upd_val(face, %AST.System{map: ts2}))
+         end)
+         res2 = Enum.all?(ts2, fn {face, v2} -> 
+           conv(v2, upd_val(face, %AST.System{map: ts1}))
+         end)
+         res1 && res2
         
 
       {%Per.AST.System{map: ts}, v} ->
@@ -584,15 +492,7 @@ defmodule Per.Typechecker do
         Enum.all?(ts, fn {face, v_face} -> conv(upd_val(face, v), v_face) end)
 
       {%AST.HComp{type: t1, phi: r1, u: u1, u0: v1}, %AST.HComp{type: t2, phi: r2, u: u2, u0: v2}} ->
-        res_t = conv(t1, t2)
-        res_r = conv(r1, r2)
-        res_u = conv(u1, u2)
-        res_v = conv(v1, v2)
-        if not (res_t and res_r and res_u and res_v) do
-           IO.puts "DEBUG: HComp field mismatch!"
-           IO.puts "  T: #{res_t}, R: #{res_r}, U: #{res_u}, V: #{res_v}"
-        end
-        res_t && res_r && res_u && res_v
+         conv(t1, t2) && conv(r1, r2) && conv(u1, u2) && conv(v1, v2)
 
       {%AST.Transp{path: p1, phi: i1}, %AST.Transp{path: p2, phi: i2}} ->
         conv(p1, p2) && conv(i1, i2)
@@ -677,9 +577,8 @@ defmodule Per.Typechecker do
       {%AST.Refl{expr: a}, %AST.Refl{expr: b}} -> conv(a, b)
       {%AST.IdJ{expr: a}, %AST.IdJ{expr: b}} -> conv(a, b)
 
-      _ -> 
-        IO.inspect({v1, v2}, label: "conv_match CATCH-ALL")
-        false
+      _ -> false
+    end
     end
   end
 
@@ -749,9 +648,9 @@ defmodule Per.Typechecker do
           end
           u_comp = %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
             {_, v_i, w_i} = extPathP(appFormula(p, i))
-            sys1 = border(solve(phi, 1), uj)
-            sys2 = border(solve(j, 0), v_i)
-            sys3 = border(solve(j, 1), w_i)
+            sys1 = border(Per.DNF.solve(phi, 1), uj)
+            sys2 = border(Per.DNF.solve(j, 0), v_i)
+            sys3 = border(Per.DNF.solve(j, 1), w_i)
             %AST.System{map: Map.merge(Map.merge(sys1.map, sys2.map), sys3.map)}
           end}
           comp(t_comp, r_prime, u_comp, uj)
@@ -778,20 +677,20 @@ defmodule Per.Typechecker do
         # λ (x : A), hcomp (B x) φ (λ (i : I), [φ → u i 1=1 x]) (u₀ x)
         %AST.Lam{name: "x", domain: dom, body: fn x ->
           hcomp(cod.(x), r, %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
-            border(solve(r, 1), app(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), x))
+            border(Per.DNF.solve(r, 1), app(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), x))
           end}, app(u0, x))
         end}
 
       {%AST.Sigma{domain: dom, codomain: cod}, _} ->
         # (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 1, comp (λ i, B (hfill A φ (λ (k : I), [(r = 1) → (u k 1=1).1]) u₀.1 i)) φ (λ (k : I), [(r = 1) → (u k 1=1).2]) u₀.2)
         v1_hfill = fn j -> hfill(dom, r, %AST.Lam{name: "k", domain: %AST.Interval{}, body: fn k ->
-          border(solve(r, 1), vfst(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}})))
+          border(Per.DNF.solve(r, 1), vfst(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}})))
         end}, vfst(u0), j) end
         
         v1_final = v1_hfill.(%AST.Dir{val: 1})
         
         v2 = comp(fn i -> cod.(v1_hfill.(i)) end, r, %AST.Lam{name: "k", domain: %AST.Interval{}, body: fn k ->
-          border(solve(r, 1), vsnd(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}})))
+          border(Per.DNF.solve(r, 1), vsnd(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}})))
         end}, vsnd(u0))
         
         %AST.Pair{first: v1_final, second: v2}
@@ -801,9 +700,9 @@ defmodule Per.Typechecker do
         %AST.PLam{name: "j", body: fn j ->
           r_prime = evalOr(r, evalOr(j, negFormula(j)))
           hcomp(appFormula(t_path, j), r_prime, %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
-            sys1 = border(solve(r, 1), appFormula(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), j))
-            sys2 = border(solve(j, 0), v)
-            sys3 = border(solve(j, 1), w)
+            sys1 = border(Per.DNF.solve(r, 1), appFormula(app(app(u, i), %AST.Refl{expr: %AST.Dir{val: 1}}), j))
+            sys2 = border(Per.DNF.solve(j, 0), v)
+            sys3 = border(Per.DNF.solve(j, 1), w)
             %AST.System{map: Map.merge(Map.merge(sys1.map, sys2.map), sys3.map)}
           end}, appFormula(u0, j))
         end}
@@ -815,8 +714,8 @@ defmodule Per.Typechecker do
   def hfill(t, r, u, u0, j) do
     # hcomp t ((-j) \/ r) (\ i -> [r -> u (i /\ j) 1=1, (j=0) -> u0]) u0
     hcomp(t, evalOr(negFormula(j), r), %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
-      sys1 = border(solve(r, 1), app(app(u, evalAnd(i, j)), %AST.Refl{expr: %AST.Dir{val: 1}}))
-      sys2 = border(solve(j, 0), u0)
+      sys1 = border(Per.DNF.solve(r, 1), app(app(u, evalAnd(i, j)), %AST.Refl{expr: %AST.Dir{val: 1}}))
+      sys2 = border(Per.DNF.solve(j, 0), u0)
       %AST.System{map: Map.merge(sys1.map, sys2.map)}
     end}, u0)
   end
@@ -859,13 +758,9 @@ defmodule Per.Typechecker do
           v0 = eval(b, Map.put(ctx, x, {:local, %AST.Interval{}, %AST.Dir{val: 0}}))
           v1 = eval(b, Map.put(ctx, x, {:local, %AST.Interval{}, %AST.Dir{val: 1}}))
           if not conv(v0, u0) do
-             IO.puts "PATH ENDPOINT 0 MISMATCH"
-             IO.inspect({v0, u0}, label: "GOT vs EXPECTED")
              raise "Path endpoint mismatch at 0: expected #{AST.to_string(u0)}, got #{AST.to_string(v0)}"
           end
           if not conv(v1, u1) do
-             IO.puts "PATH ENDPOINT 1 MISMATCH"
-             IO.inspect({v1, u1}, label: "GOT vs EXPECTED")
              raise "Path endpoint mismatch at 1: expected #{AST.to_string(u1)}, got #{AST.to_string(v1)}"
           end
           {_i_name, i_var, _} = freshDim()
@@ -1030,7 +925,7 @@ defmodule Per.Typechecker do
         check(ctx, u, implv(%AST.Interval{}, partialv(t_val, r_val)))
         check(ctx, u0, t_val)
         # Check faces match at r=1
-        Enum.each(solve(r_val, 1), fn alpha ->
+        Enum.each(Per.DNF.solve(r_val, 1), fn alpha ->
            face_ctx = faceEnv(alpha, ctx)
            u0_v = case t_val do
              %AST.Pi{} -> app(app(eval(u, face_ctx), %AST.Dir{val: 0}), %AST.Refl{expr: %AST.Dir{val: 1}})
@@ -1149,7 +1044,7 @@ defmodule Per.Typechecker do
   end
 
   defp eval_system_formula(ts) do
-    getFormulaV(ts)
+    Per.DNF.getFormulaV(ts)
   end
 
   defp rec_unit(t) do
@@ -1284,8 +1179,18 @@ defmodule Per.Typechecker do
       %AST.Neutral{term: t, type: ty} -> %AST.Neutral{term: do_upd_val(face, t), type: do_upd_val(face, ty)}
       %AST.Pi{name: x, domain: a, codomain: b} -> %AST.Pi{name: x, domain: do_upd_val(face, a), codomain: b}
       %AST.Sigma{name: x, domain: a, codomain: b} -> %AST.Sigma{name: x, domain: do_upd_val(face, a), codomain: b}
-      %AST.Lam{name: x, domain: d, body: b} -> %AST.Lam{name: x, domain: do_upd_val(face, d), body: b}
-      %AST.PLam{name: x, body: b} -> %AST.PLam{name: x, body: b}
+      %AST.Lam{name: x, domain: d, body: b} ->
+        if is_function(b) do
+           %AST.Lam{name: x, domain: do_upd_val(face, d), body: fn r -> do_upd_val(face, b.(r)) end}
+        else
+           %AST.Lam{name: x, domain: do_upd_val(face, d), body: do_upd_val(face, b)}
+        end
+      %AST.PLam{name: x, body: b} ->
+        if is_function(b) do
+           %AST.PLam{name: x, body: fn r -> do_upd_val(face, b.(r)) end}
+        else
+           %AST.PLam{name: x, body: do_upd_val(face, b)}
+        end
       %AST.App{func: f, arg: x} -> app(do_upd_val(face, f), do_upd_val(face, x))
       %AST.AppFormula{left: f, right: x} -> appFormula(do_upd_val(face, f), do_upd_val(face, x))
       %AST.Pair{first: e1, second: e2, tag: r} -> %AST.Pair{first: do_upd_val(face, e1), second: do_upd_val(face, e2), tag: r}
