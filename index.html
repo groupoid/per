@@ -30,8 +30,8 @@
     <header>
         <div class="hero-content">
             <h1>Per</h1>
-            <p class="hero-subtitle">A minimal cubical CCHM implementation of MLTT-80, Martin-Löf Intuitionistic Type Theory.
-            Per is an internalized model capable of checking theorems about itself, providing a foundational core for higher-order dependently typed systems.</p>
+            <p class="hero-subtitle">A minimal cubical realization of Martin-Löf’s Intuitionistic Type Theory (MLTT-80) within the CCHM framework.
+            Per is an internalized model — a recursive structural realization capable of verifying foundational theorems within its own logical universe.</p>
         </div>
     </header>
 
@@ -40,25 +40,28 @@
             <h2>Abstract</h2>
             <div style="max-width:800px;margin:0 auto;text-align: center;">
                 <p><b>Per</b> is a theorem prover that constitutes a <b>MLTT-80</b> core for a dependently-typed lambda calculus.
-                It is specifically constrained to exclude pattern matching, let-bindings, and implicit arguments to focus on the pure mathematical properties of the core.
-                It encompasses two countable hierarchies of universes <code>U</code> and <code>V</code> for fibrational <code>Kan</code> types and <code>Interval</code> pretypes as in <b>HTS</b>,
-                dependent products <code>Pi</code>, dependent pairs <code>Sigma</code>, identity types <code>Id</code>,
-                and <code>0</code>, <code>1</code>, <code>2</code>, <code>W</code> types for well-founded definitions.</p>
-                <p>Unlike full <b>CCHM</b> cubical HIT-enriched systems with complex composition structures,
-                Per remains a minimal cubical system with <code>Glue</code>, <code>Partial</code>, <code>Subtype</code> in addition
-                to <code>hcomp</code> and <code>transp</code> operations. It focuses on correctness, soundness, totality, and canonicity —
-                the essential attributes for formal mathematics and self-internalized type theory.</p>
+                It is specifically constrained to exclude pattern matching, let-bindings, and implicit arguments to focus on
+                the pure structural properties of the type-theoretic core.
+                It incorporates twin hierarchies of universes, U and V, following the <b>HTS</b> distinction:
+                U for Kan-fibrant types supporting composition, and V for pretypes, including the geometric interval I.
+                The system supports dependent products Pi, dependent pairs Sigma, identity types Id,
+                and inductive types 0, 1, 2, W for well-founded definitions.</p>
+                <p>Unlike full <b>CCHM</b> systems with complex Higher Inductive Types (HITs),
+                Per remains a minimal cubical core with <code>Glue</code>, <code>Partial</code>, and <code>Subtype</code> primitives
+                supporting <code>hcomp</code> and <code>transp</code> operations. It prioritizes the structural integrity of
+                canonicity and normalization — essential invariants for an internalized type theory.</p>
             </div>
         </section>
 
         <section>
-            <h2>Canonicity of Natural Numbers</h2>
+            <h2>Constructions of Natural Numbers</h2>
             <p style="text-align: center; margin-bottom: 2rem;">Comparison of constructive natural numbers: structural vs. homotopical representations.</p>
             <div class="grid-2">
                 <div class="package-card">
                     <h3>Strong Canonicity</h3>
                     <hr>
-                    <p><b>canonical.per</b> — Natural numbers as a direct W-type. Every closed term of type Nat normalizes to a constructor form, perfectly satisfying the canonicity property.</p>
+                    <p><b>canonical.per</b> — Natural numbers as a direct W-type. Every closed term of type Nat normalizes
+                       to a constructor form, perfectly satisfying the canonicity property.</p>
                     <pre class="code-snippet" style="font-size: 0.85rem;">
 def A : U := 𝟐
 def B (b : 𝟐) : U₀ := ind₂ (λ (_ : 𝟐), U₀) 𝟎 𝟏 b
@@ -72,7 +75,7 @@ def succ (n : Nat) : Nat := sup A B 1₂ (λ (u : 𝟏), n)</pre>
                 <div class="package-card">
                     <h3>Homotopical Canonicity</h3>
                     <hr>
-                    <p><b>homotopical.per</b> — Homotopy-inductive natural numbers. Lacks the strong canonicity of structural types as they are defined via <code>transp</code> and <code>PathP</code>.</p>
+                    <p><b>homotopical.per</b> — Homotopy-inductive representation. Extends canonicity to path-induction, ensuring that terms involving <code>transp</code> and <code>PathP</code> maintain computational behavior through normalization to values.</p>
                     <pre class="code-snippet" style="font-size: 0.85rem;">
 def ℕ := W (x : 𝟐), ℕ-ctor x
 def zero : ℕ := sup 𝟐 ℕ-ctor 0₂ (ind₀ ℕ)
@@ -81,13 +84,13 @@ def 𝟎⟶ℕ (C : ℕ → U) (f : 𝟎 → ℕ) : C zero → C (sup 𝟐 ℕ-c
  := transp (&lt;i> C (sup 𝟐 ℕ-ctor 0₂ (λ (x : 𝟎), ind₀ (PathP (&lt;_> ℕ)
     (ind₀ ℕ x) (f x)) x @ i))) 0</pre>
 
-                    <p>Demonstrates the fluidity of semi-cubical foundations without strict structural constraints.</p>
+                    <p>Demonstrates the computational integrity of cubical foundations where paths are first-class residents.</p>
                 </div>
             </div>
         </section>
 
         <section>
-            <h2>Self-Checking Core</h2>
+            <h2>Self Aware Core</h2>
             <div class="grid-2">
                 <div class="product-card">
                     <h3>Internalized Model</h3>
@@ -111,7 +114,14 @@ def internalizing : MLTT-73
 
                 <div class="package-card">
                     <h3>Fibrational Systems</h3>
-                    <p>Leveraging <code>PathP</code> for deep-layered identity proofs. Per's foundations enable the definition of contractible types, propositions, and sets, forming a basis for univalent formalization.</p>
+
+                    <p>Pi-type is a space that contains dependent functions, which
+                    codomain type depends on value from domain type. As fiber domain
+                    present in every defined function, Pi-type is also a dependent product.
+                    Spaces of dependent functions are using in type theory to model
+                    various mathematical constructions, objects, types, or spaces and their maps:
+                    dependent functions, continuous maps, étale maps, fibre bundles, universal
+                    quantifier П-type, implications, etc.</p>
 
                     <pre class="code-snippet" style="font-size: 0.85rem;">
 def Pi (A : U) (B : A → U) : U := Π (x : A), B x
@@ -120,6 +130,12 @@ def Π-apply (A: U) (B: A → U) (f: Pi ★ A B) (a: A) : B a := f a
 def Π-β (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (B a) (Π-apply ★ A B (Π-lambda ★ A B f) a) (f a) := idp (B a) (f a)
 def Π-η (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (Pi ★ A B) f (λ (x : A), f x) := idp (Pi ★ A B) f
 </pre>
+
+                <p>Sigma-type is a space that contains dependent pairs
+                where type of the second element depends on the value
+                of the first element. As only one point of fiber domain
+                present in every defined pair, Sigma-type is also a dependent sum,
+                where fiber base is a disjoint union.</p>
 
                     <pre class="code-snippet" style="font-size: 0.85rem;">
 def Sigma (A : U) (B : A → U) : U := summa (x: A), B x
@@ -136,7 +152,9 @@ def Σ-η (A : U) (B : A → U) (p : Sigma ★ A B) : Path (Sigma ★ A B) p (pr
             <div class="grid-2">
                 <div class="package-card">
                     <h3>Identity Systems</h3>
-                    <p>Leveraging <code>PathP</code> for deep-layered identity proofs. Per's foundations enable the definition of contractible types, propositions, and sets, forming a basis for univalent formalization.</p>
+                    <p>Identity is realized via <code>PathP</code>, derived from the geometric interval I.
+                       Per's foundations ensure the structural derivation of the J-induction principle
+                       from Kan-composition operations, forming a robust basis for univalent formalization.</p>
 
                     <pre class="code-snippet" style="font-size: 0.85rem;">
 def transport (A B: U) (p : PathP (&lt;_> U) A B) (a: A): B := transp p 0 a
@@ -204,19 +222,18 @@ def elim-plam (A : U) (a b : A) (p : Path A a b) : Path (Path A a b) (plam A (el
 
 
         <section>
-            <h2>DNF Solver for Homotopy Cubes</h2>
+            <h2>Structural Decidability of Boundaries</h2>
             <div style="max-width:800px;margin:0 auto;text-align: center;">
-                <p>The <b>CCHM</b> (Cubical Computational Higher Type Theory) model requires a robust solver for <b>face lattice</b> operations.
-                Per implements a simple <b>DNF</b> (Disjunctive Normal Form) solver to handle boundary conditions in <b>hcomp</b> and <b>transp</b> operations.
-                This solver is essential for ensuring that composition across different faces remains consistent and that judgmental equality
-                between complex face expressions is decidable.</p>
+                <p>The structural consistency of the <b>CCHM</b> model over the face lattice requires a robust decidability mechanism for boundary conditions.
+                Per implements a <b>DNF</b> (Disjunctive Normal Form) solver to ensure the coherence of Kan-composition across multi-dimensional faces, 
+                guaranteeing that judgmental equality remains stable in the presence of complex boundary constraints.</p>
             </div>
             <div class="grid-2">
                 <div class="package-card" style="grid-column: span 2;">
                     <h3>Accessing Higher Dimensions</h3>
                     <p><b>constcubes.per</b> — An extensive test suite defining higher-dimensional structures.
-                      From Squares and Cubes to 4D Tesseracts, these definitions stress-test the normalization
-                      and face composition logic of the DNF solver.</p>
+                      From Squares and Cubes to 4D Tesseracts, these definitions verify the structural stability 
+                      of normalization and face composition, ensuring the core remains sound as geometric complexity scales.</p>
                     <pre class="code-snippet" style="font-size: 0.85rem;">
 def Line (A : I → U) : V := Π (i : I), A i
 
