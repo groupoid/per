@@ -40,8 +40,8 @@ jobs:
       - name: Mix Hex Dependencies
         run: mix deps.get
 
-      - name: Compile Per
-        run: mix per.base
+      - name: Compile Per with Agda syntax
+        run: mix per.base --syntax=agda
 
-      - name: Test Per
-        run: mix per.test
+      - name: Test Per with Agda syntax
+        run: mix per.test --syntax=agda
