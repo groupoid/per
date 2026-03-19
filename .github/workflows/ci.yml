@@ -43,5 +43,8 @@ jobs:
       - name: Compile Per with Agda syntax
         run: mix per.base --syntax=agda
 
+      - name: Compile Per with Agda syntax
+        run: mix per.base --syntax=lean
+
       - name: Test Per with Agda syntax
         run: mix per.test --syntax=agda
