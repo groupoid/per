@@ -68,7 +68,7 @@ def succ (n : Nat) : Nat := sup A B 1₂ (λ (u : 𝟏), n)</pre>
                 </div>
 
                 <div class="package-card">
-                    <h3>Homotopical Nature</h3>
+                    <h3>Homotopical Canonicity</h3>
                     <hr>
                     <p><b>homotopical.per</b> — Homotopy-inductive natural numbers. Lacks the strong canonicity of structural types as they are defined via <code>transp</code> and <code>PathP</code>.</p>
                     <pre class="code-snippet" style="font-size: 0.85rem;">
@@ -101,6 +101,140 @@ def internalizing : MLTT-73
                 <div class="product-card">
                     <h3>Foundational Focus</h3>
                     <p>Per excludes high-level sugar to maintain a lean, provable core. It leverages <b>Judgmental Equality</b> and <b>Strong Normalization</b>, ensuring that every well-typed term reduces to a unique normal form, even in the presence of universes and well-founded types.</p>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>MLTT and CCHM Foundations</h2>
+            <div class="grid-2">
+
+                <div class="package-card">
+                    <h3>Fibrational System</h3>
+                    <p>Leveraging <code>PathP</code> for deep-layered identity proofs. Per's foundations enable the definition of contractible types, propositions, and sets, forming a basis for univalent formalization.</p>
+
+                    <pre class="code-snippet" style="font-size: 0.85rem;">
+def Pi (O : 𝟏) (A : U) (B : A → U) : U := Π (x : A), B x
+def Π-lambda (O : 𝟏) (A : U) (B : A → U) (b : Pi ★ A B) : Pi ★ A B := λ (x : A), b x
+def Π-apply (O : 𝟏) (A: U) (B: A → U) (f: Pi ★ A B) (a: A) : B a := f a
+def Π-β (O : 𝟏) (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (B a) (Π-apply ★ A B (Π-lambda ★ A B f) a) (f a) := idp (B a) (f a)
+def Π-η (O : 𝟏) (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (Pi ★ A B) f (λ (x : A), f x) := idp (Pi ★ A B) f
+def Sigma (O : 𝟏) (A : U) (B : A → U) : U := summa (x: A), B x
+def pair (O : 𝟏) (A: U) (B: A → U) (a: A) (b: B a) : Sigma ★ A B := (a, b)
+def pr₁ (O : 𝟏) (A: U) (B: A → U) (x: Sigma ★ A B) : A := x.1
+def pr₂ (O : 𝟏) (A: U) (B: A → U) (x: Sigma ★ A B) : B (pr₁ ★ A B x) := x.2
+def Σ-β₁ (O : 𝟏) (A : U) (B : A → U) (a : A) (b : B a) : Path A a (pr₁ ★ A B (a ,b)) := idp A a
+def Σ-β₂ (O : 𝟏) (A : U) (B : A → U) (a : A) (b : B a) : Path (B a) b (pr₂ ★ A B (a, b)) := idp (B a) b
+def Σ-η (O : 𝟏) (A : U) (B : A → U) (p : Sigma ★ A B) : Path (Sigma ★ A B) p (pr₁ ★ A B p, pr₂ ★ A B p) := idp (Sigma ★ A B) p
+</pre>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="package-card">
+                    <h3>Identity System</h3>
+                    <p>Leveraging <code>PathP</code> for deep-layered identity proofs. Per's foundations enable the definition of contractible types, propositions, and sets, forming a basis for univalent formalization.</p>
+
+                    <pre class="code-snippet" style="font-size: 0.85rem;">
+def transport (A B: U) (p : PathP (&lt;_> U) A B) (a: A): B := transp p 0 a
+def singl (A: U) (a: A): U := Σ (x: A), Path A a x
+def eta (A: U) (a: A): singl A a := (a, idp A a)
+def contr (A : U) (a b : A) (p : Path A a b) : Path (singl A a) (eta A a) (b, p) := &lt;i> (p @ i, &lt;j> p @ i /\ j)
+def trans_comp (A : U) (a : A) : Path A a (transport A A (&lt;i> A) a) := &lt;j> transp (&lt;_> A) -j a
+def subst (A : U) (P : A -> U) (a b : A) (p : Path A a b) (e : P a) : P b := transp (&lt;i> P (p @ i)) 0 e
+def subst-comp (A: U) (P: A → U) (a: A) (e: P a) : Path (P a) e (subst A P a a (idp A a) e) := trans_comp (P a) e
+def D (A : U) : U₁ := Π (x y : A), Path A x y → U
+def J (A: U) (x: A) (C: D A) (d: C x x (idp A x)) (y: A) (p: Path A x y)
+  : C x y p := subst (singl A x) (\ (z: singl A x), C x (z.1) (z.2)) (eta A x) (y, p) (contr A x y p) d
+def J-1 (O : 𝟏) (A : U) (x : A) (C: D A) (d: C x x (idp A x)) (y: A) (p: Path A x y)
+  : C x y p := subst (singl A x) (\ (z: singl A x), C x (z.1) (z.2)) (eta A x) (y, p) (contr A x y p) d</pre>
+                </div>
+
+            </div>
+            <div class="grid-2">
+
+                <div class="package-card">
+                    <h3>Homotopy Type Theory</h3>
+                    <p><b>univalent.per</b> — Implementation of the core of Homotopy Type Theory, providing path spaces, identity systems, and the J-induction principle within the semi-cubical framework.</p>
+
+                    <pre class="code-snippet" style="font-size: 0.85rem;">
+def Path (A : U) (x y : A) : U := PathP (&lt;_> A) x y
+def idp (A : U) (x : A) : Path A x x := &lt;_> x
+def singl (A: U) (a: A): U := Σ (x: A), Path A a x
+def eta (A: U) (a: A): singl A a := (a, idp A a)
+def sym (A: U) (a b : A) (p : Path A a b) : Path A b a := &lt;i> p @ -i
+def contr (A : U) (a b : A) (p : Path A a b) : Path (singl A a) (eta A a) (b, p) := &lt;i> (p @ i, &lt;j> p @ i /\ j)
+def isContr (A: U) : U := Σ (x: A), Π (y: A), Path A x y
+def isContrSingl (A : U) (a : A) : isContr (singl A a) := ((a,idp A a),(\ (z:singl A a), contr A a z.1 z.2))
+def cong (A B : U) (f : A → B) (a b : A) (p : Path A a b) : Path B (f a) (f b) := &lt;i> f (p @ i)
+def ap (A: U) (a x: A) (B: A → U) (f: A → B a) (b: B a) (p: Path A a x) : Path (B a) (f a) (f x) := &lt;i> f (p @ i)</pre>
+                </div>
+            </div>
+        </section>
+
+
+        <section>
+            <h2>DNF Solver for Homotopy Cubes</h2>
+            <div style="max-width:800px;margin:0 auto;text-align: center;">
+                <p>The <b>CCHM</b> (Cubical Computational Higher Type Theory) model requires a robust solver for <b>face lattice</b> operations.
+                Per implements a simple <b>DNF</b> (Disjunctive Normal Form) solver to handle boundary conditions in <b>hcomp</b> and <b>transp</b> operations.
+                This solver is essential for ensuring that composition across different faces remains consistent and that judgmental equality
+                between complex face expressions is decidable.</p>
+            </div>
+            <div class="grid-2">
+                <div class="package-card" style="grid-column: span 2;">
+                    <h3>Accessing Higher Dimensions</h3>
+                    <p><b>constcubes.per</b> — An extensive test suite defining higher-dimensional structures.
+                      From Squares and Cubes to 4D Tesseracts, these definitions stress-test the normalization
+                      and face composition logic of the DNF solver.</p>
+                    <pre class="code-snippet" style="font-size: 0.85rem;">
+def Line (A : I → U) : V := Π (i : I), A i
+
+def Square (A : U) (a₀ a₁ b₀ b₁ : A) (u  : Path A a₀ a₁) (v  : Path A b₀ b₁) (r₀ : Path A a₀ b₀) (r₁ : Path A a₁ b₁)
+  : U := PathP (&lt;i> (Path A (r₀ @ i) (r₁ @ i))) u v
+
+def Cube (A : U) (a₀ b₀ c₀ d₀ a₁ b₁ c₁ d₁ : A)
+    (ab₀ : Path A a₀ b₀) (cd₀ : Path A c₀ d₀) (ac₀ : Path A a₀ c₀) (bd₀ : Path A b₀ d₀)
+    (ab₁ : Path A a₁ b₁) (cd₁ : Path A c₁ d₁) (ac₁ : Path A a₁ c₁) (bd₁ : Path A b₁ d₁)
+    (s₀ : Square A a₀ b₀ c₀ d₀ ab₀ cd₀ ac₀ bd₀) (s₁ : Square A a₁ b₁ c₁ d₁ ab₁ cd₁ ac₁ bd₁)
+    (pa : Path A a₀ a₁) (pb : Path A b₀ b₁) (pc : Path A c₀ c₁) (pd : Path A d₀ d₁)
+    (sab : Square A a₀ b₀ a₁ b₁ ab₀ ab₁ pa pb) (scd : Square A c₀ d₀ c₁ d₁ cd₀ cd₁ pc pd)
+    (sac : Square A a₀ c₀ a₁ c₁ ac₀ ac₁ pa pc) (sbd : Square A b₀ d₀ b₁ d₁ bd₀ bd₁ pb pd) : U
+ := PathP (&lt;i> (Square A (pa @ i) (pb @ i) (pc @ i) (pd @ i) (sab @ i) (scd @ i) (sac @ i) (sbd @ i))) s₀ s₁
+
+def Tesseract (A : U) (a₀ b₀ c₀ d₀ a₁ b₁ c₁ d₁ a₂ b₂ c₂ d₂ a₃ b₃ c₃ d₃ : A)
+    (ab₀ : Path A a₀ b₀) (cd₀ : Path A c₀ d₀) (ac₀ : Path A a₀ c₀) (bd₀ : Path A b₀ d₀)
+    (ab₁ : Path A a₁ b₁) (cd₁ : Path A c₁ d₁) (ac₁ : Path A a₁ c₁) (bd₁ : Path A b₁ d₁)
+    (s₀ : Square A a₀ b₀ c₀ d₀ ab₀ cd₀ ac₀ bd₀) (s₁ : Square A a₁ b₁ c₁ d₁ ab₁ cd₁ ac₁ bd₁)
+    (a₀₁ : Path A a₀ a₁) (b₀₁ : Path A b₀ b₁) (c₀₁ : Path A c₀ c₁) (d₀₁ : Path A d₀ d₁)
+    (sab₀₁ : Square A a₀ b₀ a₁ b₁ ab₀ ab₁ a₀₁ b₀₁) (scd₀₁ : Square A c₀ d₀ c₁ d₁ cd₀ cd₁ c₀₁ d₀₁)
+    (sac₀₁ : Square A a₀ c₀ a₁ c₁ ac₀ ac₁ a₀₁ c₀₁) (sbd₀₁ : Square A b₀ d₀ b₁ d₁ bd₀ bd₁ b₀₁ d₀₁)
+    (cu₀₁ : Cube A a₀ b₀ c₀ d₀ a₁ b₁ c₁ d₁ ab₀ cd₀ ac₀ bd₀ ab₁ cd₁ ac₁ bd₁ s₀ s₁ a₀₁ b₀₁ c₀₁ d₀₁ sab₀₁ scd₀₁ sac₀₁ sbd₀₁)
+    (ab₂ : Path A a₂ b₂) (cd₂ : Path A c₂ d₂) (ac₂ : Path A a₂ c₂) (bd₂ : Path A b₂ d₂)
+    (ab₃ : Path A a₃ b₃) (cd₃ : Path A c₃ d₃) (ac₃ : Path A a₃ c₃) (bd₃ : Path A b₃ d₃)
+    (s₂ : Square A a₂ b₂ c₂ d₂ ab₂ cd₂ ac₂ bd₂) (s₃ : Square A a₃ b₃ c₃ d₃ ab₃ cd₃ ac₃ bd₃)
+    (a₂₃ : Path A a₂ a₃) (b₂₃ : Path A b₂ b₃) (c₂₃ : Path A c₂ c₃) (d₂₃ : Path A d₂ d₃)
+    (sab₂₃ : Square A a₂ b₂ a₃ b₃ ab₂ ab₃ a₂₃ b₂₃) (scd₂₃ : Square A c₂ d₂ c₃ d₃ cd₂ cd₃ c₂₃ d₂₃)
+    (sac₂₃ : Square A a₂ c₂ a₃ c₃ ac₂ ac₃ a₂₃ c₂₃) (sbd₂₃ : Square A b₂ d₂ b₃ d₃ bd₂ bd₃ b₂₃ d₂₃)
+    (cu₂₃ : Cube A a₂ b₂ c₂ d₂ a₃ b₃ c₃ d₃ ab₂ cd₂ ac₂ bd₂ ab₃ cd₃ ac₃ bd₃ s₂ s₃ a₂₃ b₂₃ c₂₃ d₂₃ sab₂₃ scd₂₃ sac₂₃ sbd₂₃)
+    (a₀₂ : Path A a₀ a₂) (b₀₂ : Path A b₀ b₂) (c₀₂ : Path A c₀ c₂) (d₀₂ : Path A d₀ d₂)
+    (a₁₃ : Path A a₁ a₃) (b₁₃ : Path A b₁ b₃) (c₁₃ : Path A c₁ c₃) (d₁₃ : Path A d₁ d₃)
+    (sab₀₂ : Square A a₀ b₀ a₂ b₂ ab₀ ab₂ a₀₂ b₀₂) (scd₀₂ : Square A c₀ d₀ c₂ d₂ cd₀ cd₂ c₀₂ d₀₂)
+    (sac₀₂ : Square A a₀ c₀ a₂ c₂ ac₀ ac₂ a₀₂ c₀₂) (sbd₀₂ : Square A b₀ d₀ b₂ d₂ bd₀ bd₂ b₀₂ d₀₂)
+    (sab₁₃ : Square A a₁ b₁ a₃ b₃ ab₁ ab₃ a₁₃ b₁₃) (scd₁₃ : Square A c₁ d₁ c₃ d₃ cd₁ cd₃ c₁₃ d₁₃)
+    (sac₁₃ : Square A a₁ c₁ a₃ c₃ ac₁ ac₃ a₁₃ c₁₃) (sbd₁₃ : Square A b₁ d₁ b₃ d₃ bd₁ bd₃ b₁₃ d₁₃)
+    (sa : Square A a₀ a₁ a₂ a₃ a₀₁ a₂₃ a₀₂ a₁₃) (sb : Square A b₀ b₁ b₂ b₃ b₀₁ b₂₃ b₀₂ b₁₃)
+    (sc : Square A c₀ c₁ c₂ c₃ c₀₁ c₂₃ c₀₂ c₁₃) (sd : Square A d₀ d₁ d₂ d₃ d₀₁ d₂₃ d₀₂ d₁₃)
+    (cu₀₂ : Cube A a₀ b₀ c₀ d₀ a₂ b₂ c₂ d₂ ab₀ cd₀ ac₀ bd₀ ab₂ cd₂ ac₂ bd₂ s₀ s₂ a₀₂ b₀₂ c₀₂ d₀₂ sab₀₂ scd₀₂ sac₀₂ sbd₀₂)
+    (cu₁₃ : Cube A a₁ b₁ c₁ d₁ a₃ b₃ c₃ d₃ ab₁ cd₁ ac₁ bd₁ ab₃ cd₃ ac₃ bd₃ s₁ s₃ a₁₃ b₁₃ c₁₃ d₁₃ sab₁₃ scd₁₃ sac₁₃ sbd₁₃)
+    (cuab : Cube A a₀ b₀ a₁ b₁ a₂ b₂ a₃ b₃ ab₀ ab₁ a₀₁ b₀₁ ab₂ ab₃ a₂₃ b₂₃ sab₀₁ sab₂₃ a₀₂ b₀₂ a₁₃ b₁₃ sab₀₂ sab₁₃ sa sb)
+    (cucd : Cube A c₀ d₀ c₁ d₁ c₂ d₂ c₃ d₃ cd₀ cd₁ c₀₁ d₀₁ cd₂ cd₃ c₂₃ d₂₃ scd₀₁ scd₂₃ c₀₂ d₀₂ c₁₃ d₁₃ scd₀₂ scd₁₃ sc sd)
+    (cuac : Cube A a₀ c₀ a₁ c₁ a₂ c₂ a₃ c₃ ac₀ ac₁ a₀₁ c₀₁ ac₂ ac₃ a₂₃ c₂₃ sac₀₁ sac₂₃ a₀₂ c₀₂ a₁₃ c₁₃ sac₀₂ sac₁₃ sa sc)
+    (cubd : Cube A b₀ d₀ b₁ d₁ b₂ d₂ b₃ d₃ bd₀ bd₁ b₀₁ d₀₁ bd₂ bd₃ b₂₃ d₂₃ sbd₀₁ sbd₂₃ b₀₂ d₀₂ b₁₃ d₁₃ sbd₀₂ sbd₁₃ sb sd)
+ : U := PathP (&lt;i> (Cube A (a₀₂ @ i) (b₀₂ @ i) (c₀₂ @ i) (d₀₂ @ i) (a₁₃ @ i) (b₁₃ @ i) (c₁₃ @ i) (d₁₃ @ i)
+        (sab₀₂ @ i) (scd₀₂ @ i) (sac₀₂ @ i) (sbd₀₂ @ i) (sab₁₃ @ i) (scd₁₃ @ i) (sac₁₃ @ i) (sbd₁₃ @ i)
+        (cu₀₂ @ i) (cu₁₃ @ i) (sa @ i) (sb @ i) (sc @ i) (sd @ i)
+        (cuab @ i) (cucd @ i) (cuac @ i) (cubd @ i))) cu₀₁ cu₂₃
                 </div>
             </div>
         </section>
