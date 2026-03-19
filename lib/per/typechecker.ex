@@ -113,28 +113,26 @@ defmodule Per.Typechecker do
       m when is_map(m) and is_struct(m) -> Map.from_struct(m)
       _ -> %{}
     end
-    Enum.reduce(face_items, ctx, fn {name, val}, acc ->
-      Map.put(acc, name, {:local, %AST.Interval{}, %AST.Dir{val: val}})
+    Enum.reduce(face_items, ctx, fn 
+      {name, val}, acc ->
+        Map.put(acc, name, {:local, %AST.Interval{}, %AST.Dir{val: val}})
+      _, acc -> acc
     end)
   end
 
   defp border(xs, v), do: %AST.System{map: Map.new(Enum.map(xs, fn alpha -> {alpha, upd(alpha, v)} end))}
   defp partialv(t, r), do: %AST.PartialP{type: %AST.System{map: border(solve(r, 1), t).map}, phi: r}
 
-  defp upd(_alpha, v), do: v # Simplified face update
+  defp upd(alpha, v), do: upd_val(alpha, v)
 
   defp is1(v), do: match?(%AST.Dir{val: 1}, v)
 
   def evalOr(v1, v2) do
-    res = Per.DNF.eval_or(v1, v2)
-    # IO.inspect({v1, v2, res}, label: "evalOr")
-    res
+    Per.DNF.eval_or(v1, v2)
   end
   def evalAnd(v1, v2), do: Per.DNF.eval_and(v1, v2)
   def negFormula(v) do
-    res = Per.DNF.neg_formula(v)
-    # IO.inspect({v, res}, label: "negFormula")
-    res
+    Per.DNF.neg_formula(v)
   end
 
   def vfst(%AST.Pair{first: u}), do: u
@@ -214,7 +212,7 @@ defmodule Per.Typechecker do
         %AST.Partial{expr: eval(e, ctx)}
       %AST.PartialP{type: t, phi: r} ->
         %AST.PartialP{type: eval(t, ctx), phi: eval(r, ctx)}
-      %AST.System{map: xs} -> %AST.System{map: evalSystem(ctx, xs)}
+      %AST.System{map: xs} -> evalSystem(ctx, xs)
       %AST.Sub{type: a, phi: i, u: u} ->
         %AST.Sub{type: eval(a, ctx), phi: eval(i, ctx), u: eval(u, ctx)}
       %AST.Inc{type: t, phi: r} -> %AST.Inc{type: eval(t, ctx), phi: eval(r, ctx)}
@@ -271,18 +269,10 @@ defmodule Per.Typechecker do
     end
   end
 
-  defp safe_enum(e, label) do
-    if not Enumerable.impl_for(e) do
-      IO.puts "SAFE_ENUM FAIL [#{label}]: value is not Enumerable: #{inspect(e)}"
-    end
-    e
-  end
+  defp safe_enum(e, _label), do: e
 
   defp closByVal(ctx, x, t, b) do
     # x is identifier, t is domain value, b is body expression
-    if is_function(b) do
-       IO.puts "DEBUG: closByVal received ALREADY A FUNCTION for body: #{inspect(b)}"
-    end
     fn v -> eval(b, Map.put(ctx, x, {:local, t, v})) end
   end
 
@@ -291,9 +281,12 @@ defmodule Per.Typechecker do
       %AST.Lam{body: func} when is_function(func) -> func.(x)
       %AST.PLam{body: func} when is_function(func) -> func.(x)
       %AST.System{map: xs} ->
-        case Map.get(xs, %{}) do
-          nil -> %AST.System{map: Map.new(Enum.map(xs, fn {face, term} -> {face, app(term, x)} end))}
-          v -> v
+        xs_map = if is_struct(xs), do: xs.map, else: xs
+        case Map.get(xs_map, %{}) do
+          nil -> 
+            new_map = Map.new(Enum.map(xs_map, fn {face, term} -> {face, app(term, x)} end))
+            evalSystem(%{}, new_map)
+          v_empty -> app(v_empty, x)
         end
       %AST.PartialP{type: t} -> app(t, x)
       %AST.AppFormula{left: v, right: r} ->
@@ -352,7 +345,6 @@ defmodule Per.Typechecker do
          %AST.Neutral{term: %AST.App{func: term, arg: x}, type: b.(x)}
 
       _ ->
-        if match?(%AST.Var{name: "∂"}, f), do: IO.inspect({f, x}, label: "APP OF ∂")
         %AST.App{func: f, arg: x}
     end
   end
@@ -375,7 +367,9 @@ defmodule Per.Typechecker do
         end
       %AST.PartialP{type: t} -> appFormula(t, x)
       %AST.System{map: xs} ->
-        %AST.System{map: Map.new(Enum.map(xs, fn {face, term} -> {face, appFormula(term, x)} end))}
+        xs_map = if is_struct(xs), do: xs.map, else: xs
+        new_map = Map.new(Enum.map(xs_map, fn {face, term} -> {face, appFormula(term, x)} end))
+        evalSystem(%{}, new_map)
       _ ->
         x_ast = case x do
           %AST.Neutral{term: t} -> t
@@ -392,29 +386,56 @@ defmodule Per.Typechecker do
   end
 
 
+  defp upd_val(face, v) do
+    # Normalize face to map
+    alpha = case face do
+      m when is_map(m) and not is_struct(m) -> m
+      l when is_list(l) -> Map.new(l)
+      _ -> %{}
+    end
+    if map_size(alpha) == 0, do: v, else: do_upd_val(alpha, v)
+  end
+
   defp evalSystem(ctx, xs) do
+    # Normalize xs to a plain map (not a struct)
+    xs_map = case xs do
+      m when is_map(m) and not is_struct(m) -> m
+      m when is_struct(m, AST.System) -> m.map
+      l when is_list(l) -> Map.new(l)
+      _ -> %{}
+    end
+
     # Prune faces and evaluate terms in extended context
-    ts_prime = Map.new(Enum.flat_map(safe_enum(xs, "evalSystem"), fn {face, term} ->
+    results = Enum.flat_map(xs_map, fn {face, term} ->
        # Normalize face to map
        alpha = case face do
-         m when is_map(m) -> m
-         {n, v} -> %{n => v}
+         m when is_map(m) and not is_struct(m) -> m
+         l when is_list(l) -> Map.new(l)
          _ -> %{}
        end
-       # Evaluate term in context extended by face alpha
-       v = eval(term, faceEnv(alpha, ctx))
-       # The face itself might be simplified or impossible in current ctx?
-       # Actually, solve(face, 1) in ctx should tell us.
-       # Simplified: if any condition in face is contradicted by ctx, prune.
+       # If face contradicts ctx, prune it
        if face_contradicts?(alpha, ctx) do
          []
        else
-         [{face, v}]
+         # NEW: Check if face is satisfied (fully contained in ctx)
+         beta = Enum.reject(alpha, fn {name, val} ->
+           case Map.get(ctx, name) do
+             {:local, _, %AST.Dir{val: v}} -> v == val
+             _ -> false
+           end
+         end) |> Map.new()
+
+         v = eval(term, faceEnv(alpha, ctx))
+         [{beta, v}] # Return face simplified relative to ctx
        end
-    end))
-    case Map.values(ts_prime) |> Enum.find(fn _ -> Map.has_key?(ts_prime, %{}) end) do
-      nil -> %AST.System{map: ts_prime}
-      _ -> Map.get(ts_prime, %{})
+    end)
+    ts_prime = Map.new(results)
+
+    # Reduction: if there's an empty face %{}, it's the result
+    if Map.has_key?(ts_prime, %{}) do
+      Map.get(ts_prime, %{})
+    else
+      %AST.System{map: ts_prime}
     end
   end
 
@@ -422,10 +443,7 @@ defmodule Per.Typechecker do
     alpha = case face do
       m when is_map(m) and not is_struct(m) -> m
       l when is_list(l) -> l
-      {n, v} -> [{n, v}]
-      m when is_map(m) and is_struct(m, AST.System) -> m.map
-      m when is_map(m) and is_struct(m) -> Map.from_struct(m)
-      _ -> %{}
+      _ -> []
     end
     Enum.any?(alpha, fn {name, val} ->
       case Map.get(ctx, name) do
@@ -458,11 +476,6 @@ defmodule Per.Typechecker do
   end
 
   def conv(v1, v2) do
-    if is_function(v1) or is_function(v2) do
-      IO.puts "DEBUG conv: received function atom!"
-      IO.inspect(v1, label: "V1")
-      IO.inspect(v2, label: "V2")
-    end
     try do
       cond do
         v1 == v2 -> true
@@ -504,7 +517,12 @@ defmodule Per.Typechecker do
         x = %AST.Neutral{term: %AST.Var{name: name}, type: %AST.Interval{}}
         v1 = f.(x)
         v2 = appFormula(g, x)
-        conv(v1, v2)
+        IO.puts "> conv_match PLam vs any"
+        IO.inspect(v1, label: "  V1 (PLam body)")
+        IO.inspect(v2, label: "  V2 (appFormula)")
+        res = conv(v1, v2)
+        IO.puts "> conv_match PLam body res: #{res}"
+        res
 
       {f, %AST.Lam{body: g, domain: dom}} ->
         x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: dom}
@@ -523,21 +541,22 @@ defmodule Per.Typechecker do
         Process.get(:per_girard, false) or u == v
       {%AST.Pair{first: a, second: b}, %AST.Pair{first: c, second: d}} -> conv(a, c) && conv(b, d)
 
-      {%AST.System{map: xs}, %AST.System{map: ys}} ->
-        Map.keys(xs) == Map.keys(ys) && (try do Enum.all?(safe_enum(xs, "conv_sys_sys"), fn {face, term} -> conv(term, Map.get(ys, face)) end) rescue e -> IO.puts("Enum.all? FAIL SYS/SYS: #{inspect(xs)}"); reraise e, __STACKTRACE__ end)
 
-      {%AST.System{map: xs}, x} ->
-        try do
-          Enum.all?(safe_enum(xs, "conv_sys_any"), fn {face, y} -> conv(app(upd_face(face, x), %AST.Refl{expr: %AST.Dir{val: 1}}), y) end)
-        rescue
-          e -> IO.puts("Enum.all? FAIL SYS/ANY: #{inspect(xs)}"); reraise e, __STACKTRACE__
-        end
-      {x, %AST.System{map: xs}} ->
-        try do
-          Enum.all?(safe_enum(xs, "conv_any_sys"), fn {face, y} -> conv(app(upd_face(face, x), %AST.Refl{expr: %AST.Dir{val: 1}}), y) end)
-        rescue
-          e -> IO.puts("Enum.all? FAIL ANY/SYS: #{inspect(xs)}"); reraise e, __STACKTRACE__
-        end
+      {%Per.AST.System{map: ts1}, %Per.AST.System{map: ts2}} ->
+        # Pointwise conversion on common faces
+        Map.keys(ts1) == Map.keys(ts2) && Enum.all?(ts1, fn {face, v1} ->
+          conv(v1, Map.get(ts2, face))
+        end)
+
+      {%Per.AST.System{map: ts}, v} ->
+        # System reduction: v must match all components where they're defined
+        Enum.all?(ts, fn {face, v_face} ->
+          conv(v_face, upd_val(face, v))
+        end)
+      {v, %Per.AST.System{map: ts}} ->
+        Enum.all?(ts, fn {face, v_face} ->
+          conv(upd_val(face, v), v_face)
+        end)
 
       {%AST.HComp{type: t1, phi: r1, u: u1, u0: v1}, %AST.HComp{type: t2, phi: r2, u: u2, u0: v2}} ->
         conv(t1, t2) && conv(r1, r2) && conv(u1, u2) && conv(v1, v2)
@@ -546,20 +565,17 @@ defmodule Per.Typechecker do
         conv(p1, p2) && conv(i1, i2)
 
       {%AST.HComp{phi: r, u: u, u0: u0}, v} ->
+        # Huber: hcomp A φ u u₀ = u i 1=1 if φ = 1
         res_u0 = conv(u0, v)
         res_u0 && Enum.all?(solve(r, 1), fn face ->
-          ctx_face = faceEnv(face, %{})
-          v_face = eval(app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}}), ctx_face)
-          v_expected = eval(v, ctx_face)
-          conv(v_face, v_expected)
+          v_face = eval(app(u, %AST.Dir{val: 1}), faceEnv(face, %{}))
+          conv(v_face, upd_val(face, v))
         end)
       {v, %AST.HComp{phi: r, u: u, u0: u0}} ->
         res_u0 = conv(u0, v)
         res_u0 && Enum.all?(solve(r, 1), fn face ->
-          ctx_face = faceEnv(face, %{})
-          v_face = eval(app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}}), ctx_face)
-          v_expected = eval(v, ctx_face)
-          conv(v_face, v_expected)
+           v_face = eval(app(u, %AST.Dir{val: 1}), faceEnv(face, %{}))
+           conv(upd_val(face, v), v_face)
         end)
 
       {%AST.Pi{domain: a, codomain: f}, %AST.Pi{domain: b, codomain: g}} ->
@@ -676,18 +692,17 @@ defmodule Per.Typechecker do
       match?(%AST.Universe{}, ev_p) -> u0
       match?(%AST.Pi{}, ev_p) ->
         # transp (<i> Π (x : A i), B i x) φ u₀ ~> λ (x : A 1), transp (<i> B i (transFill (<j> A -j) φ x i)) φ (u₀ (transFill (<j> A -j) φ x 1))
-        # ev_p is Pi(...) at i
-        # We need the domain and codomain at i=1 for the lambda domain.
         {dom1, _} = extPiG(appFormula(p, %AST.Dir{val: 1}))
         %AST.Lam{name: "x", domain: dom1, body: fn x ->
-          v = fn j -> transFill(%AST.PLam{name: "j", body: fn j ->
+          # v(i) = transFill (<j> A -j) phi x i
+          v = fn i -> transFill(%AST.PLam{name: "j", body: fn j ->
             {dom_neg_j, _} = extPiG(appFormula(p, negFormula(j)))
             dom_neg_j
-          end}, phi, x, j) end
+          end}, phi, x, i) end
           
           p_cod = %AST.PLam{name: "i", body: fn i ->
             {_, {_, cod_i}} = extPiG(appFormula(p, i))
-            cod_i.(v.(negFormula(i)))
+            cod_i.(v.(i))
           end}
           transport(p_cod, phi, app(u0, v.(%AST.Dir{val: 1})))
         end}
@@ -733,8 +748,13 @@ defmodule Per.Typechecker do
 
   def hcomp(t, r, u, u0) do
     case {t, r} do
-      {_, %AST.Dir{val: 1}} ->
-        app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
+      {t_v, %AST.Dir{val: 1}} ->
+        case t_v do
+          %AST.Pi{} -> app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
+          %AST.Sigma{} -> app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
+          %AST.PathP{} -> app(app(u, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
+          _ -> app(u, %AST.Dir{val: 1})
+        end
 
       {_, %AST.Dir{val: 0}} -> u0
 
@@ -815,8 +835,7 @@ defmodule Per.Typechecker do
 
         {%AST.System{map: ts}, %AST.PartialP{type: t, phi: _phi}} ->
           Enum.each(ts, fn {face, e} ->
-             alpha = [face]
-             check(faceEnv(alpha, ctx), e, t)
+             check(faceEnv(face, ctx), e, t)
           end)
           :ok
 
@@ -875,6 +894,7 @@ defmodule Per.Typechecker do
         case e do
           %RuntimeError{message: "Check error: " <> _} -> reraise e, __STACKTRACE__
           _ ->
+            IO.puts Exception.format(:error, e, __STACKTRACE__)
             raise "Check error: while checking #{AST.to_string(e0)} against #{AST.to_string(t0)}: #{inspect(e)}"
         end
     end
@@ -995,8 +1015,15 @@ defmodule Per.Typechecker do
         check(ctx, u, implv(%AST.Interval{}, partialv(t_val, r_val)))
         check(ctx, u0, t_val)
         # Check faces match at r=1
-        Enum.each(safe_enum(r_val, "hcomp_solve"), fn alpha ->
-           eqNf(eval(app(app(eval(u, ctx), %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}}), faceEnv(alpha, ctx)), eval(u0, faceEnv(alpha, ctx)))
+        Enum.each(solve(r_val, 1), fn alpha ->
+           u_v = eval(u, ctx)
+           u1_v = case t_val do
+             %AST.Pi{} -> app(app(u_v, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
+             %AST.Sigma{} -> app(app(u_v, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
+             %AST.PathP{} -> app(app(u_v, %AST.Dir{val: 1}), %AST.Refl{expr: %AST.Dir{val: 1}})
+             _ -> app(u_v, %AST.Dir{val: 1})
+           end
+           eqNf(eval(u1_v, faceEnv(alpha, %{})), eval(u0, faceEnv(alpha, ctx)))
         end)
         t_val
 
@@ -1222,19 +1249,35 @@ defmodule Per.Typechecker do
     end
   end
 
-  defp upd_face(alpha, v) do
-    # alpha can be a map %{name => val} or a tuple {name, val} (from System keys)
-    face_map = case alpha do
-      m when is_map(m) and not is_struct(m) -> m
-      l when is_list(l) -> Map.new(l)
-      {n, v} -> %{n => v}
-      m when is_map(m) and is_struct(m, AST.System) -> m.map
-      m when is_map(m) and is_struct(m) -> Map.from_struct(m)
-      _ -> %{}
+  defp do_upd_val(face, v) do
+    case v do
+      %AST.Var{} -> v
+      %AST.Neutral{term: t, type: ty} -> %AST.Neutral{term: do_upd_val(face, t), type: do_upd_val(face, ty)}
+      %AST.Pi{name: x, domain: a, codomain: b} -> %AST.Pi{name: x, domain: do_upd_val(face, a), codomain: b}
+      %AST.Sigma{name: x, domain: a, codomain: b} -> %AST.Sigma{name: x, domain: do_upd_val(face, a), codomain: b}
+      %AST.Lam{name: x, domain: d, body: b} -> %AST.Lam{name: x, domain: do_upd_val(face, d), body: b}
+      %AST.PLam{name: x, body: b} -> %AST.PLam{name: x, body: b}
+      %AST.App{func: f, arg: x} -> app(do_upd_val(face, f), do_upd_val(face, x))
+      %AST.AppFormula{left: f, right: x} -> appFormula(do_upd_val(face, f), do_upd_val(face, x))
+      %AST.Pair{first: e1, second: e2, tag: r} -> %AST.Pair{first: do_upd_val(face, e1), second: do_upd_val(face, e2), tag: r}
+      %AST.PathP{path: p, u0: u0, u1: u1} -> %AST.PathP{path: do_upd_val(face, p), u0: do_upd_val(face, u0), u1: do_upd_val(face, u1)}
+      %AST.HComp{type: t, phi: r, u: u, u0: u0} -> hcomp(do_upd_val(face, t), do_upd_val(face, r), do_upd_val(face, u), do_upd_val(face, u0))
+      %AST.Transp{path: p, phi: i} -> %AST.Transp{path: do_upd_val(face, p), phi: do_upd_val(face, i)}
+      %AST.System{map: ts} ->
+        # Ensure ts is a map for processing
+        ts_map = case ts do
+          m when is_struct(m) -> m.map
+          m when is_map(m) -> m
+          l when is_list(l) -> Map.new(l)
+          _ -> %{}
+        end
+        # Apply face recursively to terms and faces
+        new_map = Map.new(Enum.map(ts_map, fn {alpha, term} -> {alpha, do_upd_val(face, term)} end))
+        evalSystem(%{}, new_map)
+      %AST.Dir{val: d} -> %AST.Dir{val: d}
+      %AST.Universe{level: l} -> %AST.Universe{level: l}
+      _ -> v
     end
-    # Convert face map to ctx
-    face_ctx = Map.new(Enum.map(face_map, fn {name, val} -> {name, {:local, %AST.Interval{}, %AST.Dir{val: val}}} end))
-    eval(readback(v), face_ctx)
   end
 
   def check_module(%AST.Module{declarations: decls}, env) do

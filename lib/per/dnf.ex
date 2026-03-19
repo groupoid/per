@@ -30,12 +30,9 @@ defmodule Per.DNF do
   def ext_and(v) do
     case v do
       %AST.And{left: x, right: y} -> Map.merge(ext_and(x), ext_and(y))
-      %AST.Neg{expr: %AST.Var{name: x}} -> Map.new([{x, 0}])
-      %AST.Neg{expr: %AST.Neutral{term: %AST.Var{name: x}}} -> Map.new([{x, 0}])
+      %AST.Neg{expr: n} -> Map.new([{n, 0}])
       %AST.Dir{val: 1} -> %{}
       %AST.Dir{val: 0} -> raise "Zero in ext_and"
-      %AST.Var{name: x} -> Map.new([{x, 1}])
-      %AST.Neutral{term: %AST.Var{name: x}} -> Map.new([{x, 1}])
       atom -> Map.new([{atom, 1}])
     end
   end
