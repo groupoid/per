@@ -10,16 +10,16 @@ def 0-ind (C: 𝟎 → U) (z: 𝟎) : C z := ind-empty (C z) z
 
 def 1-rec (C: U) (x: C) : 𝟏 → C := ind₁ (\(_:𝟏), C) x
 def 1-ind (C: 𝟏 → U) (x: C ★) : П (z: 𝟏), C z := ind₁ C x
---def 1-β (C: U) (c: C): Path C (1-rec C c ★) c := idp C c
---def 1-η (z: 𝟏) : Path 𝟏 ★ z := idp 𝟏 ★
+def 1-β (C: U) (c: C): Path C (1-rec C c ★) c := idp C c
+def 1-η (z: 𝟏) : Path 𝟏 ★ z := idp 𝟏 ★
 
 def 2-ind (C: 𝟐 → U) (x: C 0₂) (y: C 1₂) : П (z: 𝟐), C z := ind₂ C x y
 def 2-rec (C: U) (x y: C) : П (z: bool), C := ind₂ (\(_:𝟐), C) x y
 
 def 2-β₁ (C : 𝟐 → U) (f : Π (x : 𝟐), C 0₂) (g : Π (y : 𝟐), C 1₂) : PathP (<_>C 0₂) (f 0₂) (ind₂ (λ (x : 𝟐), C x) (f 0₂) (g 1₂) 0₂) := <_> f 0₂
---def 2-β₂ (C : 𝟐 → U) (f : Π (x : 𝟐), C 0₂) (g : Π (y : 𝟐), C 1₂) : PathP (<_>C 1₂) (g 1₂) (ind₂ (λ (x : 𝟐), C x) (f 0₂) (g 1₂) 1₂) := <_> g 1₂
+def 2-β₂ (C : 𝟐 → U) (f : Π (x : 𝟐), C 0₂) (g : Π (y : 𝟐), C 1₂) : PathP (<_>C 1₂) (g 1₂) (ind₂ (λ (x : 𝟐), C x) (f 0₂) (g 1₂) 1₂) := <_> g 1₂
 
---def 2-η (c : 𝟐) : + (PathP (<_> 𝟐) c 0₂) (PathP (<_> 𝟐) c 1₂) := ind₂ (λ (c : 𝟐), + (PathP (<_> 𝟐) c 0₂) (PathP (<_> 𝟐) c 1₂)) (0₂, <_> 0₂) (1₂, <_> 1₂) c
+def 2-η (c : 𝟐) : + (PathP (<_> 𝟐) c 0₂) (PathP (<_> 𝟐) c 1₂) := ind₂ (λ (c : 𝟐), + (PathP (<_> 𝟐) c 0₂) (PathP (<_> 𝟐) c 1₂)) (0₂, <_> 0₂) (1₂, <_> 1₂) c
 
 def W′ (A : U) (B : A → U) : U := W (x: A), B x
 def sup′ (A : U) (B : A → U) (x : A) (f : B x → W′ A B) : W′ A B := sup A B x f
@@ -43,11 +43,11 @@ def W-case (A : U) (B : A → U) (C : U) (g : Π (x : A) (f : B x → (W (x : A)
   : (W (x : A), B x) → C
  := W-ind′ A B (λ (_ : W (x : A), B x), C) g
 
--- def indᵂ-β (A : U) (B : A → U) (C : (W (x : A), B x) → U)
---     (g : Π (x : A) (f : B x → (W (x : A), B x)), (Π (b : B x), C (f b)) → C (sup A B x f))
---     (a : A) (f : B a → (W (x : A), B x))
---  : PathP (<_> C (sup A B a f)) (indᵂ A B C g (sup A B a f)) (g a f (λ (b : B a), indᵂ A B C g (f b)))
--- := <_> g a f (λ (b : B a), indᵂ A B C g (f b))
+def indᵂ-β (A : U) (B : A → U) (C : (W (x : A), B x) → U)
+     (g : Π (x : A) (f : B x → (W (x : A), B x)), (Π (b : B x), C (f b)) → C (sup A B x f))
+     (a : A) (f : B a → (W (x : A), B x))
+  : PathP (<_> C (sup A B a f)) (indᵂ A B C g (sup A B a f)) (g a f (λ (b : B a), indᵂ A B C g (f b)))
+ := <_> g a f (λ (b : B a), indᵂ A B C g (f b))
 
 def W-proj₁ (A : U) (B : A → U) : (W (x : A), B x) → A
  := W-case A B A (λ (x : A) (f : B x → (W (x : A), B x)), x)

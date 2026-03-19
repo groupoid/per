@@ -244,6 +244,12 @@ and app : value * value -> value = function
   | VSystem ts, x -> reduceSystem ts x
   | VLam (_, (_, f)), v -> f v
   | VInc _, VOuc v -> v
+  | VApp (VIndUnit _, f), VStar -> f
+  | VApp (VApp (VIndBool _, f), _), VFalse -> f
+  | VApp (VApp (VIndBool _, _), g), VTrue -> g
+  | VApp (VIndW (a, b, c), g), VSup (x, f) ->
+      let rec_call = VLam (app (b, x), (fresh (ident "b"), fun b' -> app (app (VIndW (a, b, c), g), app (f, b')))) in
+      app (app (app (g, x), f), rec_call)
   | f, x -> VApp (f, x)
 
 and evalSystem ctx ts =
@@ -442,7 +448,7 @@ and prune ctx x = match Env.find_opt x ctx with
   | None                 -> raise (VariableNotFound x)
 
 and conv v1 v2 : bool =
-  v1 == v2 || begin match v1, v2 with
+  v1 == v2 || convInd v1 v2 || begin match v1, v2 with
     | VKan u, VKan v -> ieq u v
     | VPair (_, a, b), VPair (_, c, d) -> conv a c && conv b d
     | VPair (_, a, b), v | v, VPair (_, a, b) -> conv (vfst v) a && conv (vsnd v) b
@@ -501,6 +507,13 @@ and convId v1 v2 =
       conv t1 t2 && conv a1 a2 && conv b1 b2
     | _, _ -> false
   with ExpectedNeutral _ -> false
+
+and convInd v1 v2 =
+  try match inferV v1, inferV v2 with
+    | VUnit, VUnit -> true
+    | VEmpty, VEmpty -> true
+    | _, _ -> false
+  with _ -> false
 
 and eqNf v1 v2 : unit = if conv v1 v2 then () else raise (Ineq (rbV v1, rbV v2))
 
@@ -713,6 +726,7 @@ let getTerm e ctx = if !preeval then Value (eval e ctx) else Exp e
 let checkDecl ctx d : ctx =
   let x = getDeclName d in if Env.mem (ident x) ctx then raise (AlreadyDeclared x);
   match d with
+  | Def (p, EHole, e) -> let t = infer ctx e in Env.add (ident p) (Global, Value t, getTerm e ctx) ctx
   | Def (p, a, e) -> ignore (extSet (infer ctx a)); let t = eval a ctx in let v = ident p in check (upGlobal ctx v t (Var (v, t))) e t; Env.add (ident p) (Global, Value t, getTerm e ctx) ctx
   | Axiom (p, a)  -> ignore (extSet (infer ctx a)); let x = ident p in let t = eval a ctx in Env.add x (Global, Value t, Value (Var (x, t))) ctx
 
