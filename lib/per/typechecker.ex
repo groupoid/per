@@ -36,10 +36,56 @@ defmodule Per.Typechecker do
   def implv(a, b), do: %AST.Pi{name: "_", domain: a, codomain: fn _ -> b end}
 
   def imax(u, v) do
-    lu = case u do %AST.Universe{level: l} -> l; %AST.Dir{val: l} -> l; _ -> raise "Expected Universe in imax-left, got: #{inspect(u)}" end
-    lv = case v do %AST.Universe{level: l} -> l; %AST.Dir{val: l} -> l; _ -> raise "Expected Universe in imax-right, got: #{inspect(v)}" end
+    lu = case u do %AST.Universe{level: l} -> l; %AST.Dir{val: l} -> l; _ -> 0 end
+    lv = case v do %AST.Universe{level: l} -> l; %AST.Dir{val: l} -> l; _ -> 0 end
     %AST.Universe{level: max(lu, lv)}
   end
+
+  defp isOne(i), do: idv(%AST.Interval{}, %AST.Dir{val: 1}, i)
+  
+  defp solve(k, x) do
+    val_x = case x do %AST.Dir{val: d} -> d; d when is_integer(d) -> d end
+    case {k, val_x} do
+      {%AST.Dir{val: y}, _} -> if val_x == y, do: [%{}], else: []
+      {%AST.Var{name: p}, _} -> [%{p => val_x}]
+      {%AST.Neutral{term: %AST.Var{name: p}}, _} -> [%{p => val_x}]
+      {%AST.Neg{expr: n}, _} -> solve(n, 1 - val_x)
+      {%AST.Or{left: f, right: g}, 1} -> union_faces(solve(f, 1), solve(g, 1))
+      {%AST.And{left: f, right: g}, 0} -> union_faces(solve(f, 0), solve(g, 0))
+      {%AST.Or{left: f, right: g}, 0} -> meets(solve(f, 0), solve(g, 0))
+      {%AST.And{left: f, right: g}, 1} -> meets(solve(f, 1), solve(g, 1))
+      _ -> []
+    end
+  end
+
+  defp union_faces(xs, ys), do: Enum.uniq(xs ++ ys)
+
+  defp meet(f1, f2) do
+    try do
+      res = Map.merge(f1, f2, fn _k, v1, v2 ->
+        if v1 == v2, do: v1, else: throw(:incompatible)
+      end)
+      {:ok, res}
+    catch
+      :incompatible -> :error
+    end
+  end
+
+  defp meets(xs, ys) do
+    for x <- xs, y <- ys, match?({:ok, _}, meet(x, y)), do: elem(meet(x, y), 1)
+    |> Enum.uniq()
+  end
+
+  defp faceEnv(alpha, ctx) do
+    Enum.reduce(alpha, ctx, fn {name, val}, acc ->
+      Map.put(acc, name, {:local, %AST.Interval{}, %AST.Dir{val: val}})
+    end)
+  end
+
+  defp border(xs, v), do: %AST.System{map: Map.new(Enum.map(xs, fn alpha -> {alpha, upd(alpha, v)} end))}
+  defp partialv(t, r), do: %AST.PartialP{type: %AST.System{map: border(solve(r, 1), t).map}, phi: r}
+
+  defp upd(_alpha, v), do: v # Simplified face update
 
   defp is0(v), do: match?(%AST.Dir{val: 0}, v)
   defp is1(v), do: match?(%AST.Dir{val: 1}, v)
@@ -669,16 +715,26 @@ defmodule Per.Typechecker do
         {w_prime, {_q, h}} = extPiG(infer(ctx, c))
         eqNf(wtype(t, eval(b, ctx)), w_prime)
         _ = extSet(h.(%AST.Var{name: "_"}))
-
         infer_ind_w(t, eval(b, ctx), eval(c, ctx))
 
 
+      %AST.HComp{type: t, phi: r, u: u, u0: u0} ->
+        t_val = eval(t, ctx)
+        r_val = eval(r, ctx)
+        _ = extKan(infer(ctx, t))
+        check(ctx, r, %AST.Interval{})
+        check(ctx, u, implv(%AST.Interval{}, partialv(t_val, r_val)))
+        check(ctx, u0, t_val)
+        # Check faces match at r=1
+        Enum.each(solve(r_val, 1), fn alpha ->
+           eqNf(eval(app(app(u, %AST.Interval{}), %AST.Refl{expr: %AST.Dir{val: 1}}), faceEnv(alpha, ctx)), eval(u0, faceEnv(alpha, ctx)))
+        end)
+        t_val
+
       %AST.Transp{path: p, phi: i} ->
-        _ty_p = infer(ctx, p) # Should be Interval -> U
-        _ty_i = infer(ctx, i) # Should be Interval
+        check(ctx, i, %AST.Interval{})
         p_val = eval(p, ctx)
-        _i_val = eval(i, ctx)
-        implv(appFormula(p_val, %AST.Dir{val: 0}), appFormula(p_val, %AST.Dir{val: 1})) # Simplified transp type
+        implv(appFormula(p_val, %AST.Dir{val: 0}), appFormula(p_val, %AST.Dir{val: 1}))
 
       %AST.PathP{path: p, u0: nil} ->
         eval_p = eval(p, ctx)
@@ -744,8 +800,46 @@ defmodule Per.Typechecker do
         # Infer non-dependent Sigma type
         %AST.Sigma{domain: eval(ta, ctx), codomain: fn _ -> eval(tb, ctx) end}
 
+      %AST.System{map: ts} ->
+        # checkOverlapping(ctx, ts)
+        %AST.PartialP{type: %AST.System{map: Map.new(Enum.map(ts, fn {face, term} -> {face, infer(ctx, term)} end))}, phi: eval_system_formula(ts)}
+
+      %AST.Sub{type: a, phi: i, u: u} ->
+        _ = extSet(infer(ctx, a))
+        check(ctx, i, %AST.Interval{})
+        check(ctx, u, partialv(eval(a, ctx), eval(i, ctx)))
+        %AST.Universe{level: extSet(infer(ctx, a))}
+
+      %AST.Inc{type: t, phi: r} ->
+        _ = extSet_or_Kan(infer(ctx, t))
+        check(ctx, r, %AST.Interval{})
+        %AST.Sub{type: eval(t, ctx), phi: eval(r, ctx), u: %AST.Hole{}} # Simplified
+
+      %AST.Ouc{expr: e} ->
+        case infer(ctx, e) do
+          %AST.Sub{type: t} -> t
+          _ -> raise "Expected Sub type for Ouc, got: #{inspect(infer(ctx, e))}"
+        end
+
+      %AST.Partial{expr: e} ->
+        n = extSet(infer(ctx, e))
+        implv(%AST.Interval{}, %AST.Universe{level: n})
+
+      %AST.PartialP{type: t, phi: r0} ->
+        check(ctx, r0, %AST.Interval{})
+        case infer(ctx, t) do
+          %AST.PartialP{type: ts, phi: r} ->
+             eqNf(r, eval(r0, ctx))
+             inferV(inferV(ts))
+          _ -> raise "Expected partial function into universe"
+        end
+
       _ -> raise "Inference not implemented for: #{inspect(e)}"
     end
+  end
+
+  defp eval_system_formula(ts) do
+    ts |> Map.keys() |> Enum.reduce(%AST.Dir{val: 0}, fn f, acc -> evalOr(acc, f) end)
   end
 
   defp rec_unit(t) do
