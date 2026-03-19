@@ -27,6 +27,10 @@ defmodule Per.AST do
     defstruct [:name, :type, :erl_mod, :erl_func]
   end
 
+  defmodule Let do
+    defstruct [:name, :type, :val, :body]
+  end
+
   # --- Core Language Terms ---
 
   defmodule Var do
@@ -35,6 +39,10 @@ defmodule Per.AST do
 
   defmodule Universe do
     defstruct [:level]
+  end
+
+  defmodule Type do
+    defstruct [:cosmos, :level]
   end
 
   defmodule Pi do
@@ -147,6 +155,18 @@ defmodule Per.AST do
 
   defmodule Ouc do
     defstruct [:expr]
+  end
+
+  defmodule Glue do
+    defstruct [:type]
+  end
+
+  defmodule GlueElem do
+    defstruct [:phi, :u, :a]
+  end
+
+  defmodule Unglue do
+    defstruct [:phi, :u, :e]
   end
 
   defmodule Empty do
