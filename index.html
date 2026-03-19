@@ -41,10 +41,12 @@
             <div style="max-width:800px;margin:0 auto;text-align: center;">
                 <p><b>Per</b> is a theorem prover that constitutes a <b>MLTT-80</b> core for a dependently-typed lambda calculus.
                 It is specifically constrained to exclude pattern matching, let-bindings, and implicit arguments to focus on the pure mathematical properties of the core.
-                It encompasses two countable hierarchies of universes U and V as in <b>HTS</b>, dependent products <code>Pi</code>, dependent pairs <code>Sigma</code>, identity types <code>Id</code>,
+                It encompasses two countable hierarchies of universes <code>U</code> and <code>V</code> for fibrational <code>Kan</code> types and <code>Interval</code> pretypes as in <b>HTS</b>,
+                dependent products <code>Pi</code>, dependent pairs <code>Sigma</code>, identity types <code>Id</code>,
                 and <code>0</code>, <code>1</code>, <code>2</code>, <code>W</code> types for well-founded definitions.</p>
                 <p>Unlike full <b>CCHM</b> cubical HIT-enriched systems with complex composition structures,
-                Per remains a minimal cubical system. It focuses on correctness, soundness, totality, and canonicity —
+                Per remains a minimal cubical system with <code>Glue</code>, <code>Partial</code>, <code>Subtype</code> in addition
+                to <code>hcomp</code> and <code>transp</code> operations. It focuses on correctness, soundness, totality, and canonicity —
                 the essential attributes for formal mathematics and self-internalized type theory.</p>
             </div>
         </section>
@@ -114,18 +116,18 @@ def internalizing : MLTT-73
                     <p>Leveraging <code>PathP</code> for deep-layered identity proofs. Per's foundations enable the definition of contractible types, propositions, and sets, forming a basis for univalent formalization.</p>
 
                     <pre class="code-snippet" style="font-size: 0.85rem;">
-def Pi (O : 𝟏) (A : U) (B : A → U) : U := Π (x : A), B x
-def Π-lambda (O : 𝟏) (A : U) (B : A → U) (b : Pi ★ A B) : Pi ★ A B := λ (x : A), b x
-def Π-apply (O : 𝟏) (A: U) (B: A → U) (f: Pi ★ A B) (a: A) : B a := f a
-def Π-β (O : 𝟏) (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (B a) (Π-apply ★ A B (Π-lambda ★ A B f) a) (f a) := idp (B a) (f a)
-def Π-η (O : 𝟏) (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (Pi ★ A B) f (λ (x : A), f x) := idp (Pi ★ A B) f
-def Sigma (O : 𝟏) (A : U) (B : A → U) : U := summa (x: A), B x
-def pair (O : 𝟏) (A: U) (B: A → U) (a: A) (b: B a) : Sigma ★ A B := (a, b)
-def pr₁ (O : 𝟏) (A: U) (B: A → U) (x: Sigma ★ A B) : A := x.1
-def pr₂ (O : 𝟏) (A: U) (B: A → U) (x: Sigma ★ A B) : B (pr₁ ★ A B x) := x.2
-def Σ-β₁ (O : 𝟏) (A : U) (B : A → U) (a : A) (b : B a) : Path A a (pr₁ ★ A B (a ,b)) := idp A a
-def Σ-β₂ (O : 𝟏) (A : U) (B : A → U) (a : A) (b : B a) : Path (B a) b (pr₂ ★ A B (a, b)) := idp (B a) b
-def Σ-η (O : 𝟏) (A : U) (B : A → U) (p : Sigma ★ A B) : Path (Sigma ★ A B) p (pr₁ ★ A B p, pr₂ ★ A B p) := idp (Sigma ★ A B) p
+def Pi (A : U) (B : A → U) : U := Π (x : A), B x
+def Π-lambda (A : U) (B : A → U) (b : Pi ★ A B) : Pi ★ A B := λ (x : A), b x
+def Π-apply (A: U) (B: A → U) (f: Pi ★ A B) (a: A) : B a := f a
+def Π-β (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (B a) (Π-apply ★ A B (Π-lambda ★ A B f) a) (f a) := idp (B a) (f a)
+def Π-η (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (Pi ★ A B) f (λ (x : A), f x) := idp (Pi ★ A B) f
+def Sigma (A : U) (B : A → U) : U := summa (x: A), B x
+def pair (A: U) (B: A → U) (a: A) (b: B a) : Sigma ★ A B := (a, b)
+def pr₁ (A: U) (B: A → U) (x: Sigma ★ A B) : A := x.1
+def pr₂ (A: U) (B: A → U) (x: Sigma ★ A B) : B (pr₁ ★ A B x) := x.2
+def Σ-β₁ (A : U) (B : A → U) (a : A) (b : B a) : Path A a (pr₁ ★ A B (a ,b)) := idp A a
+def Σ-β₂ (A : U) (B : A → U) (a : A) (b : B a) : Path (B a) b (pr₂ ★ A B (a, b)) := idp (B a) b
+def Σ-η (A : U) (B : A → U) (p : Sigma ★ A B) : Path (Sigma ★ A B) p (pr₁ ★ A B p, pr₂ ★ A B p) := idp (Sigma ★ A B) p
 </pre>
                 </div>
             </div>
