@@ -94,11 +94,9 @@ def 𝟎⟶ℕ (C : ℕ → U) (f : 𝟎 → ℕ) : C zero → C (sup 𝟐 ℕ-c
                     <p>Per is designed to be self-hosting in its logic. The core constructs are represented within the language itself, allowing for proofs about the typechecker's own behaviors and properties.</p>
                     <pre class="code-snippet">
 def internalizing : MLTT-73
- := ( Pi ★, Π-lambda ★, Π-apply ★, Π-β ★, Π-η ★,
-      Sigma ★, pair ★, pr₁ ★, pr₂ ★, Σ-β₁ ★, Σ-β₂ ★, Σ-η ★,
-      Path-1 ★, idp-1 ★, J-1 ★, J-β ★,
-      ★
-    )</pre>
+ := ( Pi, Π-lambda, Π-apply, Π-β, Π-η,
+      Sigma, pair, pr₁, pr₂, Σ-β₁, Σ-β₂, Σ-η,
+      Path-1, idp-1, J-1, J-β, ★ )</pre>
                 </div>
                 <div class="product-card">
                     <h3>Foundational Focus</h3>
