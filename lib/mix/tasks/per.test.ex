@@ -27,7 +27,11 @@ defmodule Mix.Tasks.Per.Test do
             IO.puts("OK (#{mod})")
             :ok
 
-          err ->
+          {:error, _} = err ->
+            IO.puts("FAILED: #{inspect(err)}")
+            :error
+
+          {:error, _, _} = err ->
             IO.puts("FAILED: #{inspect(err)}")
             :error
         end

@@ -2,10 +2,11 @@ defmodule Per.Parser.Agda do
   alias Per.AST
 
   def parse(tokens) when is_list(tokens) do
-    # Strip explicit newlines and virtual semicolons, Layout has already handled block structure
-    tokens = Enum.filter(tokens, fn t -> elem(t, 0) not in [:newline, :v_semicolon] end)
+    # Strip explicit newlines, keep virtual semicolons for Agda layout
+    tokens = Enum.filter(tokens, fn t -> elem(t, 0) != :newline end)
     parse_module(tokens)
   end
+
 
   def parse({:error, _} = err), do: err
 
@@ -71,7 +72,7 @@ defmodule Per.Parser.Agda do
     tokens = Enum.drop_while(tokens, fn t -> elem(t, 0) == :v_semicolon or elem(t, 0) == :semicolon end)
 
     if tokens == [] or elem(hd(tokens), 0) == :v_right_brace do
-      {:ok, Enum.reverse(acc), tokens}
+      {:ok, merge_decls(Enum.reverse(acc)), tokens}
     else
       case parse_decl(tokens) do
         {:ok, decl, rest} -> parse_decls(rest, [decl | acc])
@@ -80,8 +81,21 @@ defmodule Per.Parser.Agda do
     end
   end
 
+  defp merge_decls([]), do: []
+  defp merge_decls([%AST.DeclTypeSignature{name: n, type: t}, %AST.DeclValue{name: n, type: %AST.Hole{}, expr: e} | rest]) do
+    [%AST.DeclValue{name: n, type: t, expr: e} | merge_decls(rest)]
+  end
+  defp merge_decls([%AST.DeclTypeSignature{name: n, type: t}, %AST.DeclValue{name: n, type: _t2, expr: e} | rest]) do
+    # If type was duplicated, keep the signature one or check they are same
+    # For simplicity, we merge them
+    [%AST.DeclValue{name: n, type: t, expr: e} | merge_decls(rest)]
+  end
+  defp merge_decls([h | t]), do: [h | merge_decls(t)]
+
+
   defp parse_decl(tokens) do
     case tokens do
+
       [{:import, _, _} | rest] ->
         case parse_module_name(rest) do
           {:ok, name, rest2} -> {:ok, {:import, name}, rest2}
@@ -104,16 +118,18 @@ defmodule Per.Parser.Agda do
       [token | _rest] when elem(token, 0) in [:ident, :operator, :pi_token, :sigma_token, :prod_token] ->
         case parse_val_decl(tokens) do
           {:ok, _, _} = res -> res
-          _ ->
+          val_err ->
             case parse_type_sig(tokens) do
               {:ok, _, _} = res -> res
-              _ -> {:error, :unrecognized_decl}
+              _ -> val_err
             end
         end
+
       [token | rest] -> {:error, :invalid_declaration, [token | Enum.take(rest, 5)]}
       [] -> {:error, :unexpected_eof}
     end
   end
+
 
   defp parse_infix(tokens) do
     # Skip precedence and operator for now
@@ -138,38 +154,49 @@ defmodule Per.Parser.Agda do
   defp parse_val_decl([token | rest] = _tokens) when elem(token, 0) in [:ident, :operator, :pi_token, :sigma_token, :prod_token] do
     name = extract_name(token)
     case parse_params(rest, []) do
-      {:ok, params, [{:colon, _, _} | rest2]} ->
-        case parse_expr(rest2) do
-          {:ok, ty, [{:defeq, _, _} | rest3]} ->
-             case parse_expr(rest3) do
-               {:ok, expr, rest4} ->
-                 # Desugar parameters
-                 full_ty = mk_pi_tele(params, ty)
-                 full_expr = mk_lam_tele(params, expr)
-                 {:ok, %AST.DeclValue{name: name, type: full_ty, expr: full_expr}, rest4}
-               err -> err
-             end
-           {:ok, ty, [{:=, _, _} | rest3]} ->
-             case parse_expr(rest3) do
-               {:ok, expr, rest4} ->
-                 full_ty = mk_pi_tele(params, ty)
-                 full_expr = mk_lam_tele(params, expr)
-                 {:ok, %AST.DeclValue{name: name, type: full_ty, expr: full_expr}, rest4}
-               err -> err
-             end
-           _ -> {:error, :expected_defeq}
+      {:ok, params, next_tokens} ->
+        case next_tokens do
+          [{:colon, _, _} | rest2] ->
+            case parse_expr(rest2) do
+              {:ok, ty, [{:defeq, _, _} | rest3]} ->
+                 rest3 = Enum.drop_while(rest3, fn t -> elem(t, 0) == :v_semicolon end)
+                 case parse_expr(rest3) do
+                   {:ok, expr, rest4} ->
+                     # Desugar parameters
+                     full_ty = mk_pi_tele(params, ty)
+                     full_expr = mk_lam_tele(params, expr)
+                     {:ok, %AST.DeclValue{name: name, type: full_ty, expr: full_expr}, rest4}
+                   err -> err
+                 end
+               {:ok, ty, [{:=, _, _} | rest3]} ->
+                 rest3 = Enum.drop_while(rest3, fn t -> elem(t, 0) == :v_semicolon end)
+                 case parse_expr(rest3) do
+                   {:ok, expr, rest4} ->
+                     full_ty = mk_pi_tele(params, ty)
+                     full_expr = mk_lam_tele(params, expr)
+                     {:ok, %AST.DeclValue{name: name, type: full_ty, expr: full_expr}, rest4}
+                   err -> err
+                 end
+               _ -> {:error, :expected_defeq_after_type}
+            end
+          [divider | rest2] when elem(divider, 0) in [:defeq, :=] ->
+            rest2 = Enum.drop_while(rest2, fn t -> elem(t, 0) == :v_semicolon end)
+            case parse_expr(rest2) do
+              {:ok, expr, rest3} ->
+                full_expr = mk_lam_tele(params, expr)
+                {:ok, %AST.DeclValue{name: name, type: %AST.Hole{}, expr: full_expr}, rest3}
+              err -> err
+            end
+
+          _ -> {:error, :expected_colon_or_defeq_after_params}
         end
-      {:ok, params, [divider | rest2]} when elem(divider, 0) in [:defeq, :=] ->
-        case parse_expr(rest2) do
-          {:ok, expr, rest3} ->
-            full_expr = mk_lam_tele(params, expr)
-            {:ok, %AST.DeclValue{name: name, type: %AST.Hole{}, expr: full_expr}, rest3}
-          err -> err
-        end
-      err ->
-        err
+
+
+      {:error, _} = err -> err
     end
   end
+
+
 
   defp parse_axiom_decl([{:ident, _, _, name} | rest]) do
     case parse_params(rest, []) do
@@ -184,24 +211,34 @@ defmodule Per.Parser.Agda do
     end
   end
 
-  defp parse_type_sig([token, {:colon, _, _} | rest]) when elem(token, 0) in [:ident, :operator, :pi_token, :sigma_token, :prod_token] do
-    name = extract_name(token)
-    case parse_expr(rest) do
-      {:ok, ty, rest2} -> {:ok, %AST.DeclTypeSignature{name: name, type: ty}, rest2}
-      err -> err
+  defp parse_type_sig(tokens) do
+    case tokens do
+      [token, {:colon, _, _} | rest] when elem(token, 0) in [:ident, :operator, :pi_token, :sigma_token, :prod_token] ->
+        name = extract_name(token)
+        case parse_expr(rest) do
+          {:ok, ty, rest2} -> {:ok, %AST.DeclTypeSignature{name: name, type: ty}, rest2}
+          err -> err
+        end
+      _ -> {:error, :invalid_type_sig}
     end
   end
 
   defp parse_params(tokens, acc) do
     case tokens do
+      [{:v_semicolon, _, _} | rest] -> parse_params(rest, acc)
       [{:left_paren, _, _} | _] ->
         case parse_lense(tokens) do
           {:ok, params, rest} -> parse_params(rest, acc ++ params)
-          _ -> {:ok, acc, tokens}
+          err -> err
         end
+      [token | rest] when elem(token, 0) in [:ident, :operator, :hole] ->
+        # Naked parameter
+        name = extract_name(token)
+        parse_params(rest, acc ++ [%AST.Var{name: name}])
       _ -> {:ok, acc, tokens}
     end
   end
+
 
   defp parse_lense([{:left_paren, _, _} | rest]) do
     case parse_vars(rest) do
@@ -209,16 +246,24 @@ defmodule Per.Parser.Agda do
         case parse_expr(rest2) do
           {:ok, ty, [{:right_paren, _, _} | rest3]} ->
             {:ok, Enum.map(vars, fn v -> {v, ty} end), rest3}
-          _ -> {:error, :invalid_lense_type}
+          {:ok, _ty, _other} ->
+            {:error, :invalid_lense_type}
+
+          err -> err
         end
       _ -> {:error, :invalid_lense}
     end
   end
 
 
-  defp parse_expr(tokens), do: parse_expr_binder(tokens)
+
+  defp parse_expr(tokens) do
+    tokens = Enum.drop_while(tokens, fn t -> elem(t, 0) == :v_semicolon end)
+    parse_expr_binder(tokens)
+  end
 
   defp parse_expr_binder([{:backslash, _, _} | rest]), do: parse_lam(rest)
+
   defp parse_expr_binder([{:pi_token, _, _, _} | rest] = tokens) do
     case parse_pi(rest) do
       {:ok, e, rest2} -> {:ok, e, rest2}
@@ -248,30 +293,41 @@ defmodule Per.Parser.Agda do
 
   defp parse_pi(rest) do
     case parse_params(rest, []) do
-      {:ok, params, [divider | rest2]} when elem(divider, 0) in [:arrow, :comma] ->
-        case parse_expr(rest2) do
-          {:ok, body, rest3} ->
-            {:ok, mk_pi_tele(params, body), rest3}
-          err -> err
+      {:ok, params, remaining} ->
+        remaining = Enum.drop_while(remaining, fn t -> elem(t, 0) == :v_semicolon end)
+        case remaining do
+          [divider | rest2] when elem(divider, 0) in [:arrow, :comma] ->
+            case parse_expr(rest2) do
+              {:ok, body, rest3} ->
+                {:ok, mk_pi_tele(params, body), rest3}
+              err -> err
+            end
+          _ -> {:error, :invalid_pi_divider, Enum.take(remaining, 5)}
         end
-      _ -> {:error, :invalid_pi}
+      err -> err
     end
   end
 
   defp parse_sigma(rest) do
     case parse_params(rest, []) do
       {:ok, [], rest2} -> {:error, :not_a_binder, rest2}
-      {:ok, params, [divider | rest2]} when elem(divider, 0) in [:prod_token, :comma] ->
-        case parse_expr(rest2) do
-          {:ok, body, rest3} -> {:ok, mk_sigma_tele(params, body), rest3}
-          err -> err
+      {:ok, params, remaining} ->
+        remaining = Enum.drop_while(remaining, fn t -> elem(t, 0) == :v_semicolon end)
+        case remaining do
+          [divider | rest2] when elem(divider, 0) in [:prod_token, :comma] ->
+            case parse_expr(rest2) do
+              {:ok, body, rest3} -> {:ok, mk_sigma_tele(params, body), rest3}
+              err -> err
+            end
+          _ ->
+            {:error, :expected_sigma_divider, Enum.take(remaining, 5)}
         end
-      {:ok, _params, rest2} ->
-        {:error, :expected_sigma_divider, rest2}
-      err ->
-        err
+      err -> err
+
     end
   end
+
+
 
   defp parse_w(rest) do
     # W (x : A), B x

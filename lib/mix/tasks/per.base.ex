@@ -56,6 +56,10 @@ defmodule Mix.Tasks.Per.Base do
           {:error, reason} ->
             IO.puts("FAILED: #{inspect(reason, pretty: true)}")
             :error
+
+          {:error, reason, details} ->
+            IO.puts("FAILED: #{inspect(reason, pretty: true)} -> #{inspect(details, pretty: true)}")
+            :error
         end
       else
         IO.puts("SKIPPED: #{file} not found")

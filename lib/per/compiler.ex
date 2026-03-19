@@ -18,6 +18,10 @@ defmodule Per.Compiler do
     tokens = lexer.lex(source)
     with resolved <- Layout.resolve(tokens),
          {:ok, ast, _rest} <- parser.parse(resolved) do
+
+
+
+
       initial_env = Keyword.get(opts, :env, %Per.Typechecker.Env{})
       env = resolve_imports(ast, initial_env, opts)
       env = collect_local_names(ast, env)

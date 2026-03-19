@@ -80,6 +80,8 @@ defmodule Per.Lexer.Agda do
     {ident_chars, rest2} = take_ident([c | rest])
     ident = List.to_string(ident_chars)
 
+
+
     case ident do
       "module" -> lex(rest2, line, col + String.length(ident), [{:module, line, col} | acc])
       "where" -> lex(rest2, line, col + String.length(ident), [{:where, line, col} | acc])
@@ -148,12 +150,13 @@ defmodule Per.Lexer.Agda do
       "Unit" -> lex(rest2, line, col + String.length(ident), [{:unit_type, line, col} | acc])
       "Bool" -> lex(rest2, line, col + String.length(ident), [{:bool_type, line, col} | acc])
       "Set" -> lex(rest2, line, col + String.length(ident), [{:universe_token, line, col, 0} | acc])
-      "=" -> lex(rest2, line, col + String.length(ident), [{:operator, line, col, "="} | acc])
-      ":=" -> lex(rest2, line, col + String.length(ident), [{:defeq, line, col} | acc])
+      "=" -> lex(rest2, line, col + String.length(ident), [{:=, line, col} | acc])
       _ ->
+
         cond do
           ident == "U" or ident == "V" ->
             lex(rest2, line, col + String.length(ident), [{:universe_token, line, col, 0} | acc])
+
           String.starts_with?(ident, "Set") and String.length(ident) > 3 and is_subscript?(String.at(ident, 3)) ->
             level = subscript_to_int(String.slice(ident, 3..-1//1))
             lex(rest2, line, col + String.length(ident), [{:universe_token, line, col, level} | acc])
@@ -222,6 +225,8 @@ defmodule Per.Lexer.Agda do
         (x >= ?a and x <= ?z) or (x >= ?A and x <= ?Z) or (x >= ?0 and x <= ?9) or
         x == ?_ or x == ?' or x == ?- or x == ?= or x > 127
       end)
+
+
     {[c | ident_chars], rest2}
   end
 

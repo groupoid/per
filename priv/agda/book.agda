@@ -1,3 +1,3 @@
 module book where
-import priv/foundations/mltt
+import foundations.mltt
 
