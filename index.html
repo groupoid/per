@@ -289,11 +289,12 @@ def Tesseract (A : U) (a₀ b₀ c₀ d₀ a₁ b₁ c₁ d₁ a₂ b₂ c₂ d�
             <h2>Interactive Agda and Lean REPL</h2>
             <div style="max-width:720px;margin:0 auto;">
                 <pre class="code-snippet">
-$ mix per.base
-Compiling Per base library...
-  Compiling priv/per/foundations/mltt.per... OK
-  Compiling priv/per/foundations/inductive.per... OK
-  Compiling priv/per/foundations/univalent.per... OK
+$ mix per.base --syntax=agda
+Generated per app
+Compiling Per base library [agda]...
+  Compiling priv/agda/foundations/mltt.agda... OK
+  Compiling priv/agda/foundations/inductive.agda... OK
+  Compiling priv/agda/foundations/univalent.agda... OK
 
 Per base library compilation finished successfully.
 </pre>
@@ -301,18 +302,18 @@ Per base library compilation finished successfully.
 
             <div style="max-width:720px;margin:0 auto;">
                 <pre class="code-snippet">
-$ mix per.repl
-🧊 Per Programming Language version 0.4.0 [Lean Syntax]
+$ mix per.repl --syntax=lean
+🧊 Per Programming Language version 0.4.00
 Copyright (c) 2016-2026 Groupoid Infinity
 https://groupoid.github.io/per/
 
 Loaded: mltt
 Loaded: inductive
 Loaded: univalent
-per> :eval zero
+per [Lean]> :eval zero
 TYPE: W(x : 𝟐) (ind₂ \f -> U₀) 𝟎 𝟏 x
 TERM: (sup 𝟐 (ind₂ \f -> U₀) 𝟎 𝟏) 0₂ ind₀ W(x : 𝟐) (ind₂ \f -> U₀) 𝟎 𝟏 x
-per>
+per [Lean]>
 </pre>
 </div>
         </section>
