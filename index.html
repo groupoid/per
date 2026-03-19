@@ -110,7 +110,7 @@ def internalizing : MLTT-73
             <div class="grid-2">
 
                 <div class="package-card">
-                    <h3>Fibrational System</h3>
+                    <h3>Fibrational Systems</h3>
                     <p>Leveraging <code>PathP</code> for deep-layered identity proofs. Per's foundations enable the definition of contractible types, propositions, and sets, forming a basis for univalent formalization.</p>
 
                     <pre class="code-snippet" style="font-size: 0.85rem;">
@@ -119,6 +119,9 @@ def Π-lambda (A : U) (B : A → U) (b : Pi ★ A B) : Pi ★ A B := λ (x : A),
 def Π-apply (A: U) (B: A → U) (f: Pi ★ A B) (a: A) : B a := f a
 def Π-β (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (B a) (Π-apply ★ A B (Π-lambda ★ A B f) a) (f a) := idp (B a) (f a)
 def Π-η (A : U) (B : A → U) (a : A) (f : Pi ★ A B) : Path (Pi ★ A B) f (λ (x : A), f x) := idp (Pi ★ A B) f
+</pre>
+
+                    <pre class="code-snippet" style="font-size: 0.85rem;">
 def Sigma (A : U) (B : A → U) : U := summa (x: A), B x
 def pair (A: U) (B: A → U) (a: A) (b: B a) : Sigma ★ A B := (a, b)
 def pr₁ (A: U) (B: A → U) (x: Sigma ★ A B) : A := x.1
@@ -132,7 +135,7 @@ def Σ-η (A : U) (B : A → U) (p : Sigma ★ A B) : Path (Sigma ★ A B) p (pr
 
             <div class="grid-2">
                 <div class="package-card">
-                    <h3>Identity System</h3>
+                    <h3>Identity Systems</h3>
                     <p>Leveraging <code>PathP</code> for deep-layered identity proofs. Per's foundations enable the definition of contractible types, propositions, and sets, forming a basis for univalent formalization.</p>
 
                     <pre class="code-snippet" style="font-size: 0.85rem;">
@@ -148,6 +151,21 @@ def J (A: U) (x: A) (C: D A) (d: C x x (idp A x)) (y: A) (p: Path A x y)
   : C x y p := subst (singl A x) (\ (z: singl A x), C x (z.1) (z.2)) (eta A x) (y, p) (contr A x y p) d
 def J-1 (O : 𝟏) (A : U) (x : A) (C: D A) (d: C x x (idp A x)) (y: A) (p: Path A x y)
   : C x y p := subst (singl A x) (\ (z: singl A x), C x (z.1) (z.2)) (eta A x) (y, p) (contr A x y p) d</pre>
+
+                    <pre class="code-snippet" style="font-size: 0.85rem;">
+def ∂ (i : I) := i ∨ -i
+def ∂-eq-neg-∂ (i : I) : Id I (∂ i) (∂ -i) := ref (∂ i)
+def min (i j : I) := i ∧ j
+def max (i j : I) := i ∨ j
+def ⊕ (i j : I) : I := (i ∧ -j) ∨ (-i ∧ j)
+def ⊕-comm (i j : I) : Id I (⊕ i j) (⊕ j i) := ref (⊕ i j)
+def ∧-comm (i j : I) : Id I (i ∧ j) (j ∧ i) := ref (i ∧ j)
+def ∨-comm (i j : I) : Id I (i ∨ j) (j ∨ i) := ref (i ∨ j)
+def ¬-of-∧ (i j : I) : Id I -(i ∧ j) (-i ∨ -j) := ref -(i ∧ j)
+def ¬-of-∨ (i j : I) : Id I -(i ∨ j) (-i ∧ -j) := ref -(i ∨ j)
+def ∧-distrib-∨ (i j k : I) : Id I ((i ∨ j) ∧ k) ((i ∧ k) ∨ (j ∧ k)) := ref ((i ∨ j) ∧ k)
+def ∨-distrib-∧ (i j k : I) : Id I ((i ∧ j) ∨ k) ((i ∨ k) ∧ (j ∨ k)) := ref ((i ∧ j) ∨ k)
+def ∧-assoc (i j k : I) : Id I (i ∧ (j ∧ k)) ((i ∧ j) ∧ k) := ref (i ∧ (j ∧ k))
                 </div>
 
             </div>
@@ -158,16 +176,28 @@ def J-1 (O : 𝟏) (A : U) (x : A) (C: D A) (d: C x x (idp A x)) (y: A) (p: Path
                     <p><b>univalent.per</b> — Implementation of the core of Homotopy Type Theory, providing path spaces, identity systems, and the J-induction principle within the semi-cubical framework.</p>
 
                     <pre class="code-snippet" style="font-size: 0.85rem;">
-def Path (A : U) (x y : A) : U := PathP (&lt;_> A) x y
 def idp (A : U) (x : A) : Path A x x := &lt;_> x
-def singl (A: U) (a: A): U := Σ (x: A), Path A a x
-def eta (A: U) (a: A): singl A a := (a, idp A a)
-def sym (A: U) (a b : A) (p : Path A a b) : Path A b a := &lt;i> p @ -i
-def contr (A : U) (a b : A) (p : Path A a b) : Path (singl A a) (eta A a) (b, p) := &lt;i> (p @ i, &lt;j> p @ i /\ j)
 def isContr (A: U) : U := Σ (x: A), Π (y: A), Path A x y
 def isContrSingl (A : U) (a : A) : isContr (singl A a) := ((a,idp A a),(\ (z:singl A a), contr A a z.1 z.2))
 def cong (A B : U) (f : A → B) (a b : A) (p : Path A a b) : Path B (f a) (f b) := &lt;i> f (p @ i)
-def ap (A: U) (a x: A) (B: A → U) (f: A → B a) (b: B a) (p: Path A a x) : Path (B a) (f a) (f x) := &lt;i> f (p @ i)</pre>
+def ap (A: U) (a x: A) (B: A → U) (f: A → B a) (b: B a) (p: Path A a x) : Path (B a) (f a) (f x) := &lt;i> f (p @ i)
+def inv (A: U) (a b: A) (p: Path A a b): Path A b a := &lt;i> p @ -i
+def Path-η (A : U) (x y : A) (p : Path A x y) : Path (Path A x y) p (&lt;i> p @ i) := &lt;_> p
+def idp-left (A : U) (x y : A) (p : Path A x y) : Path (Path A x x) (&lt;_> x) (&lt;_> p @ 0) := &lt;_ _> x
+def idp-right (A : U) (x y : A) (p : Path A x y) : Path (Path A y y) (&lt;_> y) (&lt;_> p @ 1) := &lt;_ _> y
+def sym-sym-eq-idp (A : U) (x y : A) (p : Path A x y) : Path (Path A x y) p (sym A y x (sym A x y p)) := &lt;_> p
+def isProp (A : U) : U := Π (a b : A), Path A a b
+def isSet (A : U) : U := Π (a b : A) (a0 b0 : Path A a b), Path (Path A a b) a0 b0
+def isGroupoid (A : U) : U := Π (a b : A) (x y : Path A a b) (i j : Path (Path A a b) x y), Path (Path (Path A a b) x y) i j
+def SET : U₁ := Σ (X : U), isSet X
+def Ω' : U₁ := Σ (A : U), isProp A
+def section (A B : U) (f : A -> B) (g : B -> A) : U := Π (b : B), Path B (f (g b)) b
+def retract (A B : U) (f : A -> B) (g : B -> A) : U := Π (a : A), Path A (g (f a)) a
+def hmtpy (A : U) (x y : A) (p : Path A x y) : Path (Path A x x) (&lt;_> x) (&lt;i> p @ i /\ -i) := &lt;j i> p @ j /\ i /\ -i
+def plam (A : U) (f : I → A) : Path A (f 0) (f 1) := &lt;i> f i
+def elim (A : U) (a b : A) (p : Path A a b) : I → A := λ (i : I), p @ i
+def plam-elim (A : U) (f : I → A) : Id (I → A) (elim A (f 0) (f 1) (plam A f)) f := ref f
+def elim-plam (A : U) (a b : A) (p : Path A a b) : Path (Path A a b) (plam A (elim A a b p)) p := &lt;_> p</pre>
                 </div>
             </div>
         </section>
@@ -291,7 +321,7 @@ per>
         <div class="footer-columns">
             <div>
                 <h4>Per</h4>
-                <p>Semi-cubical MLTT implementation in Elixir and OCaml</p>
+                <p>Minimal cubical MLTT-80 implementation in Elixir and OCaml.</p>
             </div>
             <div>
                 <h4>Bibliography</h4>
