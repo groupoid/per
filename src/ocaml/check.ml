@@ -18,36 +18,8 @@ let imax a b = match a, b with
   | VKan _, _ | VPre _, _ -> raise (ExpectedVSet (rbV b))
   | _, _ -> raise (ExpectedVSet (rbV a))
 
-let rec orFormula : value * value -> value = function
-  | VDir One, _  | _, VDir One  -> VDir One
-  | VDir Zero, f | f, VDir Zero -> f
-  | VOr (f, g), h -> orFormula (f, orFormula (g, h))
-  | f, g -> VOr (f, g)
-
-let rec andFormula : value * value -> value = function
-  | VDir Zero, _ | _, VDir Zero -> VDir Zero
-  | VDir One, f  | f, VDir One  -> f
-  | VAnd (f, g), h -> andFormula (f, andFormula (g, h))
-  | VOr (f, g), h | h, VOr (f, g) -> orFormula (andFormula (f, h), andFormula (g, h))
-  | f, g -> VAnd (f, g)
-
-let rec negFormula : value -> value = function
-  | VDir d      -> VDir (negDir d)
-  | VNeg n      -> n
-  | VAnd (f, g) -> orFormula (negFormula f, negFormula g)
-  | VOr (f, g)  -> andFormula (negFormula f, negFormula g)
-  | v           -> VNeg v
-
-let rec extAnd : value -> conjunction = function
-  | Var (x, _)        -> Conjunction.singleton (x, One)
-  | VNeg (Var (x, _)) -> Conjunction.singleton (x, Zero)
-  | VAnd (x, y)       -> Conjunction.union (extAnd x) (extAnd y)
-  | v                 -> raise (ExpectedConjunction (rbV v))
-
-let rec extOr : value -> disjunction = function | VOr (x, y) -> Disjunction.union (extOr x) (extOr y) | k -> Disjunction.singleton (extAnd k)
-let uniq t = let super x y = not (Conjunction.equal x y) && Conjunction.subset y x in Disjunction.filter (fun x -> not (Disjunction.exists (super x) t)) t
-let orEq f g = Disjunction.equal (uniq (extOr f)) (uniq (extOr g))
-let andEq f g = Conjunction.equal (extAnd f) (extAnd g)
+let orEq f g = Disjunction.equal (Dnf.uniq (Dnf.extOr f)) (Dnf.uniq (Dnf.extOr g))
+let andEq f g = Conjunction.equal (Dnf.extAnd f) (Dnf.extAnd g)
 let compatible xs ys = Env.merge (fun _ x y -> match x, y with | Some d1, Some d2 -> Some (d1 = d2) | _, _ -> Some true) xs ys |> Env.for_all (fun _ b -> b)
 let leq xs ys = Env.for_all (fun k d1 -> match Env.find_opt k ys with | Some d2 -> d1 = d2 | None    -> false) xs
 let lt xs ys = not (Env.equal (=) xs ys) && leq xs ys
@@ -64,11 +36,8 @@ let sign x = function | Zero -> ENeg (EVar x) | One  -> EVar x
 let getFace xs = Env.fold (fun x d y -> EAnd (y, sign x d)) xs (EDir One)
 let getFormula ts = System.fold (fun x _ e -> EOr (getFace x, e)) ts (EDir Zero)
 let singleton p x = Env.add p x Env.empty
-let contrAtom : ident * dir -> value = function | (x, Zero) -> VNeg (Var (x, VI)) | (x, One)  -> Var (x, VI)
-let contrAnd (t : conjunction) : value = Conjunction.fold (fun e e' -> andFormula (contrAtom e, e')) t (VDir One)
-let contrOr (t : disjunction) : value = Disjunction.fold (fun e e' -> orFormula (contrAnd e, e')) t (VDir Zero)
-let getFaceV xs = Env.fold (fun x d y -> andFormula (y, contrAtom (x, d))) xs vone
-let getFormulaV ts = System.fold (fun x _ v -> orFormula (getFaceV x, v)) ts vzero
+let getFaceV xs = Env.fold (fun x d y -> Dnf.andFormula y (Dnf.contrAtom (x, d))) xs vone
+let getFormulaV ts = System.fold (fun x _ v -> Dnf.orFormula (Dnf.getFaceV x) v) ts vzero
 
 let rec solve k x = match k, x with
   | VDir y, _ -> if x = y then [eps] else []
@@ -106,7 +75,7 @@ let rec eval (e0 : exp) (ctx : ctx) = match e0 with
   | EDir d               -> VDir d
   | EAnd (e1, e2)        -> evalAnd (eval e1 ctx) (eval e2 ctx)
   | EOr (e1, e2)         -> evalOr (eval e1 ctx) (eval e2 ctx)
-  | ENeg e               -> negFormula (eval e ctx)
+  | ENeg e               -> Dnf.negFormula (eval e ctx)
   | ETransp (p, i)       -> VTransp (eval p ctx, eval i ctx)
   | EHComp (t, r, u, u0) -> hcomp (eval t ctx) (eval r ctx) (eval u ctx) (eval u0 ctx)
   | EPartial e           -> let (i, _, _) = freshDim () in VLam (VI, (i, fun r -> let ts = mkSystem (List.map (fun mu -> (mu, eval e (faceEnv mu ctx))) (solve r One)) in VPartialP (VSystem ts, r)))
@@ -137,8 +106,8 @@ and appFormula v x = match v with
       | i         -> VAppFormula (v, i)
     end
 
-and evalAnd a b = match andFormula (a, b) with | VAnd (a, b) -> contrAnd (extAnd (VAnd (a, b))) | v -> v
-and evalOr a b = match orFormula (a, b) with | VOr (a, b) -> contrOr (uniq (extOr (VOr (a, b)))) | v -> v
+and evalAnd a b = Dnf.evalAnd a b
+and evalOr a b = Dnf.evalOr a b
 and border xs v = mkSystem (List.map (fun alpha -> (alpha, upd alpha v)) xs)
 and partialv t r = VPartialP (VSystem (border (solve r One) t) , r)
 
@@ -153,10 +122,10 @@ and transport p phi u0 = let (_, _, v) = freshDim () in match appFormula p v, ph
     let (t, _) = extPiG (appFormula p vone) in
     VLam (t, (x, fun x ->
       let v = transFill (VPLam (VLam (VI, (j, fun j ->
-        fst (extPiG (appFormula p (negFormula j))))))) phi x in
+        fst (extPiG (appFormula p (Dnf.negFormula j))))))) phi x in
       transport (VPLam (VLam (VI, (i, fun i ->
         let (_, (_, b)) = extPiG (appFormula p i) in
-          b (v (negFormula i))))))
+          b (v (Dnf.negFormula i))))))
         phi (app (u0, v vone))))
   (* transp (<i> Σ (x : A i), B i x) φ u₀ ~> (transp (<j> A j) φ u₀.1, transp (<i> B i (transFill (<j> A j) φ u₀.1 i)) φ u₀.2) *)
   | VSig _, _ ->
@@ -171,7 +140,7 @@ and transport p phi u0 = let (_, _, v) = freshDim () in match appFormula p v, ph
   | VApp (VApp (VPathP _, _), _), _ ->
     let i = fresh (ident "ι") in let j = fresh (ident "υ") in
     VPLam (VLam (VI, (j, fun j ->
-      let uj = appFormula u0 j in let r = orFormula (phi, orFormula (j, negFormula j)) in
+      let uj = appFormula u0 j in let r = Dnf.orFormula phi (Dnf.orFormula j (Dnf.negFormula j)) in
       comp (fun i -> let (q, _, _) = extPathP (appFormula p i) in appFormula q j) r
         (VLam (VI, (i, fun i ->
           let (_, v, w) = extPathP (appFormula p i) in
@@ -203,7 +172,7 @@ and hcomp t r u u0 = match t, r with
   | VApp (VApp (VPathP t, v), w), _ ->
     let (j, _, _) = freshDim () in let (i, _, _) = freshDim () in
     VPLam (VLam (VI, (j, fun j ->
-      hcomp (appFormula t j) (orFormula (r, orFormula (j, negFormula j)))
+      hcomp (appFormula t j) (Dnf.orFormula r (Dnf.orFormula j (Dnf.negFormula j)))
         (VLam (VI, (i, fun i ->
           (VSystem (unionSystem (border (solve r One) (appFormula (app (app (u, i), VRef vone)) j))
             (unionSystem (border (solve j Zero) v) (border (solve j One) w)))))))
@@ -215,21 +184,21 @@ and inc t r v = app (VInc (t, r), v)
 and comp t r u u0 =
   let (i, _, _) = freshDim () in let (j, _, _) = freshDim () in
   hcomp (t vone) r (VLam (VI, (i, fun i ->
-    let u1 = transport (VPLam (VLam (VI, (j, fun j -> t (orFormula (i, j)))))) i (app (app (u, i), VRef vone)) in
+    let u1 = transport (VPLam (VLam (VI, (j, fun j -> t (Dnf.orFormula i j))))) i (app (app (u, i), VRef vone)) in
       VSystem (border (solve r One) u1))))
     (transport (VPLam (VLam (VI, (i, t)))) vzero u0)
 
 and hfill t r u u0 j =
   let (i, _, _) = freshDim () in
-  hcomp t (orFormula (negFormula j, r))
+  hcomp t (Dnf.orFormula (Dnf.negFormula j) r)
     (VLam (VI, (i, fun i ->
       VSystem (unionSystem (border (solve r One)
-        (app (app (u, andFormula (i, j)), VRef vone)))
+        (app (app (u, Dnf.andFormula i j), VRef vone)))
           (border (solve j Zero) u0))))) u0
 
 and transFill p phi u0 j = let (i, _, _) = freshDim () in
-  transport (VPLam (VLam (VI, (i, fun i -> appFormula p (andFormula (i, j))))))
-    (orFormula (phi, negFormula j)) u0
+  transport (VPLam (VLam (VI, (i, fun i -> appFormula p (Dnf.andFormula i j)))))
+    (Dnf.orFormula phi (Dnf.negFormula j)) u0
 
 and closByVal ctx p t e v =
   (* dirty hack to handle free variables introduced by type checker, for example, while checking terms like p : Path P a b *)
@@ -371,9 +340,9 @@ and upd e = function
   | VJ v                 -> VJ (upd e v)
   | VI                   -> VI
   | VDir d               -> VDir d
-  | VAnd (u, v)          -> andFormula (upd e u, upd e v)
-  | VOr (u, v)           -> orFormula (upd e u, upd e v)
-  | VNeg u               -> negFormula (upd e u)
+  | VAnd (u, v)          -> Dnf.andFormula (upd e u) (upd e v)
+  | VOr (u, v)           -> Dnf.orFormula (upd e u) (upd e v)
+  | VNeg u               -> Dnf.negFormula (upd e u)
   | VInc (t, r)          -> VInc (upd e t, upd e r)
   | VOuc v               -> evalOuc (upd e v)
   | VEmpty               -> VEmpty
