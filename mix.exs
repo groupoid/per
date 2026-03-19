@@ -4,7 +4,7 @@ defmodule Per.MixProject do
   def project do
     [
       app: :per,
-      version: "5.3.15",
+      version: "5.3.18",
       description: "The Per Programming Language",
       deps: deps(),
       package: package()

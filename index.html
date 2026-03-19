@@ -78,7 +78,7 @@ def ℕ := W (x : 𝟐), ℕ-ctor x
 def zero : ℕ := sup 𝟐 ℕ-ctor 0₂ (ind₀ ℕ)
 
 def 𝟎⟶ℕ (C : ℕ → U) (f : 𝟎 → ℕ) : C zero → C (sup 𝟐 ℕ-ctor 0₂ f)
- := transp (&lt;i> C (sup 𝟐 ℕ-ctor 0₂ (λ (x : 𝟎), ind₀ (PathP (&lt;_> ℕ) 
+ := transp (&lt;i> C (sup 𝟐 ℕ-ctor 0₂ (λ (x : 𝟎), ind₀ (PathP (&lt;_> ℕ)
     (ind₀ ℕ x) (f x)) x @ i))) 0</pre>
 
                     <p>Demonstrates the fluidity of semi-cubical foundations without strict structural constraints.</p>
