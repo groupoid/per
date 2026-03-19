@@ -197,30 +197,6 @@ def ∧-assoc (i j k : I) : Id I (i ∧ (j ∧ k)) ((i ∧ j) ∧ k) := ref (i �
                     <p><b>univalent.per</b> — Implementation of the core of Homotopy Type Theory, providing path spaces, identity systems, and the J-induction principle within the semi-cubical framework.</p>
 
                     <pre class="code-snippet" style="font-size: 0.85rem;">
-def idp (A : U) (x : A) : Path A x x := <_> x
-def isContr (A: U) : U := Σ (x: A), Π (y: A), Path A x y
-def isContrSingl (A : U) (a : A) : isContr (singl A a) := ((a,idp A a),(\ (z:singl A a), contr A a z.1 z.2))
-def cong (A B : U) (f : A → B) (a b : A) (p : Path A a b) : Path B (f a) (f b) := <i> f (p @ i)
-def ap (A: U) (a x: A) (B: A → U) (f: A → B a) (b: B a) (p: Path A a x): Path (B a) (f a) (f x) := <i> f (p @ i)
-def mapOnPath (A: U) (B: A → U) (a: A) (f: A → B a) (b: B a) (x: A) (p: Path A a x): Path (B a) (f a) (f x) := <i> f (p @ i)
-def inv (A: U) (a b: A) (p: Path A a b): Path A b a := <i> p @ -i
-def Path-η (A : U) (x y : A) (p : Path A x y) : Path (Path A x y) p (<i> p @ i) := <_> p
-def idp-left (A : U) (x y : A) (p : Path A x y) : Path (Path A x x) (<_> x) (<_> p @ 0) := <_ _> x
-def idp-right (A : U) (x y : A) (p : Path A x y) : Path (Path A y y) (<_> y) (<_> p @ 1) := <_ _> y
-def sym-sym-eq-idp (A : U) (x y : A) (p : Path A x y) : Path (Path A x y) p (sym A y x (sym A x y p)) := <_> p
-def isProp (A : U) : U := Π (a b : A), Path A a b
-def isSet (A : U) : U := Π (a b : A) (a0 b0 : Path A a b), Path (Path A a b) a0 b0
-def isGroupoid (A : U) : U := Π (a b : A) (x y : Path A a b) (i j : Path (Path A a b) x y), Path (Path (Path A a b) x y) i j
-def SET : U₁ := Σ (X : U), isSet X
-def Ω' : U₁ := Σ (A : U), isProp A
-def section (A B : U) (f : A -> B) (g : B -> A) : U := Π (b : B), Path B (f (g b)) b
-def retract (A B : U) (f : A -> B) (g : B -> A) : U := Π (a : A), Path A (g (f a)) a
-def hmtpy (A : U) (x y : A) (p : Path A x y) : Path (Path A x x) (<_> x) (<i> p @ i /\ -i) := <j i> p @ j /\ i /\ -i
-def plam (A : U) (f : I → A) : Path A (f 0) (f 1) := <i> f i
-def elim (A : U) (a b : A) (p : Path A a b) : I → A := λ (i : I), p @ i
-def plam-elim (A : U) (f : I → A) : Id (I → A) (elim A (f 0) (f 1) (plam A f)) f := ref f
-def elim-plam (A : U) (a b : A) (p : Path A a b) : Path (Path A a b) (plam A (elim A a b p)) p := <_> p
-
 def idp (A : U) (x : A) : Path A x x := &lt;_> x
 def isContr (A: U) : U := Σ (x: A), Π (y: A), Path A x y
 def isContrSingl (A : U) (a : A) : isContr (singl A a) := ((a,idp A a),(\ (z:singl A a), contr A a z.1 z.2))
