@@ -92,9 +92,20 @@ defmodule Per.Typechecker do
 
   defp do_eval(expr, ctx) do
     case expr do
-      %AST.Universe{level: l} -> %AST.Universe{level: l}
+      # --- O(1) Fast-path for already evaluated values ---
+      %AST.Neutral{} -> expr
+      %AST.Dir{} -> expr
+      %AST.Interval{} -> expr
+      %AST.Universe{} -> expr
+      %AST.Pi{codomain: f} when is_function(f) -> expr
+      %AST.Sigma{codomain: f} when is_function(f) -> expr
+      %AST.Lam{body: f} when is_function(f) -> expr
+      %AST.PLam{body: f} when is_function(f) -> expr
+      %AST.System{map: ts} when is_map(ts) -> expr
+
+      # --- Normal Evaluation ---
       %AST.Var{name: x} -> getRho(ctx, x)
-      %AST.Hole{} -> %AST.Hole{}
+      %AST.Hole{} -> expr
       %AST.Pi{name: x, domain: a, codomain: b} ->
         if is_function(b) do
            %AST.Pi{name: x, domain: eval(a, ctx), codomain: b}
@@ -135,8 +146,8 @@ defmodule Per.Typechecker do
         end
       %AST.AppFormula{left: e, right: x} ->
         appFormula(eval(e, ctx), eval(x, ctx))
-      %AST.Interval{} -> %AST.Interval{}
-      %AST.Dir{val: d} -> %AST.Dir{val: d}
+      %AST.Interval{} -> expr
+      %AST.Dir{} -> expr
       %AST.And{left: e1, right: e2} -> evalAnd(eval(e1, ctx), eval(e2, ctx))
       %AST.Or{left: e1, right: e2} -> evalOr(eval(e1, ctx), eval(e2, ctx))
       %AST.Neg{expr: e} -> negFormula(eval(e, ctx))
@@ -477,13 +488,17 @@ defmodule Per.Typechecker do
 
 
        {%Per.AST.System{map: ts1}, %Per.AST.System{map: ts2}} ->
-         res1 = Enum.all?(ts1, fn {face, v1} -> 
-           conv(v1, upd_val(face, %AST.System{map: ts2}))
-         end)
-         res2 = Enum.all?(ts2, fn {face, v2} -> 
-           conv(v2, upd_val(face, %AST.System{map: ts1}))
-         end)
-         res1 && res2
+         if Map.keys(ts1) == Map.keys(ts2) do
+           Enum.all?(ts1, fn {face, v1} -> conv(v1, Map.get(ts2, face)) end)
+         else
+           res1 = Enum.all?(ts1, fn {face, v1} -> 
+             conv(v1, upd_val(face, %AST.System{map: ts2}))
+           end)
+           res2 = Enum.all?(ts2, fn {face, v2} -> 
+             conv(v2, upd_val(face, %AST.System{map: ts1}))
+           end)
+           res1 && res2
+         end
         
 
       {%Per.AST.System{map: ts}, v} ->
@@ -1176,9 +1191,16 @@ defmodule Per.Typechecker do
           Map.has_key?(face, n) -> %AST.Dir{val: Map.get(face, n)}
           true -> v
         end
-      %AST.Neutral{term: t, type: ty} -> %AST.Neutral{term: do_upd_val(face, t), type: do_upd_val(face, ty)}
-      %AST.Pi{name: x, domain: a, codomain: b} -> %AST.Pi{name: x, domain: do_upd_val(face, a), codomain: b}
-      %AST.Sigma{name: x, domain: a, codomain: b} -> %AST.Sigma{name: x, domain: do_upd_val(face, a), codomain: b}
+      %AST.Neutral{term: t, type: ty} ->
+        new_t = do_upd_val(face, t)
+        new_ty = do_upd_val(face, ty)
+        if new_t === t and new_ty === ty, do: v, else: %AST.Neutral{term: new_t, type: new_ty}
+      %AST.Pi{name: x, domain: a, codomain: b} ->
+        new_a = do_upd_val(face, a)
+        if new_a === a, do: v, else: %AST.Pi{name: x, domain: new_a, codomain: b}
+      %AST.Sigma{name: x, domain: a, codomain: b} ->
+        new_a = do_upd_val(face, a)
+        if new_a === a, do: v, else: %AST.Sigma{name: x, domain: new_a, codomain: b}
       %AST.Lam{name: x, domain: d, body: b} ->
         if is_function(b) do
            %AST.Lam{name: x, domain: do_upd_val(face, d), body: fn r -> do_upd_val(face, b.(r)) end}
@@ -1191,43 +1213,77 @@ defmodule Per.Typechecker do
         else
            %AST.PLam{name: x, body: do_upd_val(face, b)}
         end
-      %AST.App{func: f, arg: x} -> app(do_upd_val(face, f), do_upd_val(face, x))
-      %AST.AppFormula{left: f, right: x} -> appFormula(do_upd_val(face, f), do_upd_val(face, x))
-      %AST.Pair{first: e1, second: e2, tag: r} -> %AST.Pair{first: do_upd_val(face, e1), second: do_upd_val(face, e2), tag: r}
-      %AST.PathP{path: p, u0: u0, u1: u1} -> %AST.PathP{path: do_upd_val(face, p), u0: do_upd_val(face, u0), u1: do_upd_val(face, u1)}
-      %AST.HComp{type: t, phi: r, u: u, u0: u0} -> hcomp(do_upd_val(face, t), do_upd_val(face, r), do_upd_val(face, u), do_upd_val(face, u0))
-      %AST.Transp{path: p, phi: i} -> %AST.Transp{path: do_upd_val(face, p), phi: do_upd_val(face, i)}
+      %AST.App{func: f, arg: x} ->
+        new_f = do_upd_val(face, f)
+        new_x = do_upd_val(face, x)
+        if new_f === f and new_x === x, do: v, else: app(new_f, new_x)
+      %AST.AppFormula{left: f, right: x} ->
+        new_f = do_upd_val(face, f)
+        new_x = do_upd_val(face, x)
+        if new_f === f and new_x === x, do: v, else: appFormula(new_f, new_x)
+      %AST.Pair{first: e1, second: e2, tag: r} ->
+        new_e1 = do_upd_val(face, e1)
+        new_e2 = do_upd_val(face, e2)
+        if new_e1 === e1 and new_e2 === e2, do: v, else: %AST.Pair{first: new_e1, second: new_e2, tag: r}
+      %AST.PathP{path: p, u0: u0, u1: u1} ->
+        new_p = do_upd_val(face, p)
+        new_u0 = if(u0, do: do_upd_val(face, u0))
+        new_u1 = if(u1, do: do_upd_val(face, u1))
+        if new_p === p and new_u0 === u0 and new_u1 === u1, do: v, else: %AST.PathP{path: new_p, u0: new_u0, u1: new_u1}
+      %AST.HComp{type: t, phi: r, u: u, u0: u0} ->
+        new_t = do_upd_val(face, t)
+        new_r = do_upd_val(face, r)
+        new_u = do_upd_val(face, u)
+        new_u0 = do_upd_val(face, u0)
+        if new_t === t and new_r === r and new_u === u and new_u0 === u0, do: v, else: hcomp(new_t, new_r, new_u, new_u0)
+      %AST.Transp{path: p, phi: i} ->
+        new_p = do_upd_val(face, p)
+        new_i = do_upd_val(face, i)
+        if new_p === p and new_i === i, do: v, else: %AST.Transp{path: new_p, phi: new_i}
       %AST.System{map: ts} ->
-        # Ensure ts is a map for processing
-        ts_map = case ts do
-          m when is_struct(m) -> m.map
-          m when is_map(m) -> m
-          l when is_list(l) -> Map.new(l)
-          _ -> %{}
-        end
-        # Correct System restriction: 
-        # 1. Filter out faces incompatible with 'face'
-        # 2. For compatible faces, remove the common assignments (already in 'face')
-        restricted_map = Enum.reduce(ts_map, %{}, fn {alpha, term}, acc ->
-          # check compatibility: if alpha and face assign different values to same var, they are incompatible
-          incompatible = Enum.any?(face, fn {k, v} -> 
-             av = Map.get(alpha, k)
-             av != nil and av != v
+        # 1. Normalize ts to a map
+        ts_map = if is_map(ts) and not is_struct(ts), do: ts, else: (if is_struct(ts, AST.System), do: ts.map, else: Map.new(ts))
+        
+        face_keys = Map.keys(face)
+        # 2. Compatibility check and update terms
+        {res_list, all_same} = Enum.reduce(ts_map, {[], true}, fn {alpha, term}, {acc, same} ->
+          incompatible = Enum.any?(face, fn {k, v} ->
+            av = Map.get(alpha, k)
+            av != nil and av != v
           end)
+          
           if incompatible do
-            acc
+            {acc, false}
           else
-            # remove redundant assignments from alpha
-            new_alpha = Map.drop(alpha, Map.keys(face))
-            Map.put(acc, new_alpha, do_upd_val(face, term))
+            new_alpha = Map.drop(alpha, face_keys)
+            new_term = do_upd_val(face, term)
+            {[{new_alpha, new_term} | acc], same and (new_alpha === alpha and new_term === term)}
           end
         end)
-        evalSystem(%{}, restricted_map)
-      %AST.And{left: x, right: y} -> evalAnd(do_upd_val(face, x), do_upd_val(face, y))
-      %AST.Or{left: x, right: y} -> evalOr(do_upd_val(face, x), do_upd_val(face, y))
-      %AST.Neg{expr: e} -> negFormula(do_upd_val(face, e))
-      %AST.Dir{val: d} -> %AST.Dir{val: d}
-      %AST.Universe{level: l} -> %AST.Universe{level: l}
+
+        if all_same and length(res_list) == map_size(ts_map) do
+          v
+        else
+          # 3. Prune redundant faces (O(N^2) but necessary to prevent explosion)
+          final_list = Enum.reject(res_list, fn {alpha, _} ->
+            Enum.any?(res_list, fn {beta, _} -> alpha != beta and Map.merge(alpha, beta) == alpha end)
+          end)
+          %AST.System{map: Map.new(final_list)}
+        end
+      %AST.And{left: x, right: y} ->
+        new_x = do_upd_val(face, x)
+        new_y = do_upd_val(face, y)
+        if new_x === x and new_y === y, do: v, else: evalAnd(new_x, new_y)
+      %AST.Or{left: x, right: y} ->
+        new_x = do_upd_val(face, x)
+        new_y = do_upd_val(face, y)
+        if new_x === x and new_y === y, do: v, else: evalOr(new_x, new_y)
+      %AST.Neg{expr: e} ->
+        new_e = do_upd_val(face, e)
+        if new_e === e, do: v, else: negFormula(new_e)
+      %AST.Dir{} -> v
+      %AST.Universe{} -> v
+      %AST.Interval{} -> v
       _ -> v
     end
   end

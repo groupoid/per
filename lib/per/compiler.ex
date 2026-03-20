@@ -17,24 +17,24 @@ defmodule Per.Compiler do
 
     if Keyword.get(opts, :trace, false), do: Prof.start()
 
-    tokens = lexer.lex(source)
+    tokens = Prof.measure("lexer", fn -> lexer.lex(source) end)
     with resolved <- Layout.resolve(tokens),
-         {:ok, ast, _rest} <- parser.parse(resolved) do
-
-
+         {:ok, ast, _rest} <- Prof.measure("parser", fn -> parser.parse(resolved) end) do
 
 
       initial_env = Keyword.get(opts, :env, %Per.Typechecker.Env{})
-      env = resolve_imports(ast, initial_env, opts)
+      env = Prof.measure("imports", fn -> resolve_imports(ast, initial_env, opts) end)
       env = collect_local_names(ast, env)
-      desugared = Desugar.desugar(ast, env)
+      desugared = Prof.measure("desugar", fn -> Desugar.desugar(ast, env) end)
       final_env = populate_local_env(desugared, env)
       typecheck_res =
         if Keyword.get(opts, :typecheck, true) do
-          case Per.Typechecker.check_module(desugared, final_env) do
-            :ok -> :ok
-            {:error, reason} -> {:error, {:type_error, reason}}
-          end
+          Prof.measure("typecheck", fn ->
+            case Per.Typechecker.check_module(desugared, final_env) do
+              :ok -> :ok
+              {:error, reason} -> {:error, {:type_error, reason}}
+            end
+          end)
         else
           :ok
         end
