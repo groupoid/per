@@ -57,8 +57,7 @@ defmodule Prof do
         end
 
       max_width = 40
-      IO.puts("Trace:")
-
+      IO.puts("")
       Enum.each(sorted, fn {{name, depth}, {count, time}} ->
         indent = String.duplicate("  ", depth)
         per = time / total_time

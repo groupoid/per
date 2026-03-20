@@ -14,26 +14,30 @@ defmodule Mix.Tasks.Per.Base do
       IO.puts("Compiling Per base library [#{syntax_str}]...")
     end
 
-    # Order matters for the base library
     base_dir = if syntax == :agda, do: "priv/agda/", else: "priv/per/"
-    
-    base_files = [
-      Path.join(base_dir, "foundations/mltt.per"),
-      Path.join(base_dir, "foundations/inductive.per"),
-      Path.join(base_dir, "foundations/univalent.per")
-    ]
+    base_per = if syntax == :agda, do: Path.wildcard(base_dir <> "**/*.agda"), else: Path.wildcard(base_dir <> "**/*.per")
 
-    # Also check for .agda extension
-    base_files = Enum.flat_map(base_files, fn f ->
-      if File.exists?(f) do
-        [f]
-      else
-        agda_f = String.replace(f, ".per", ".agda")
-        if File.exists?(agda_f), do: [agda_f], else: [f]
-      end
-    end)
+    target_syntax = case syntax_str do
+      "lean" -> :lean
+      "agda" -> :agda
+      _ -> nil
+    end
 
-    out_dir = "ebin"
+    base_files =  Enum.filter(base_per, fn file ->
+        file_syntax = cond do
+          Path.extname(file) == ".per" -> :lean
+          true -> :agda
+        end
+        file_syntax == target_syntax
+      end)
+
+
+    syntax_dir = case syntax do
+      :lean   -> "per"
+      :agda   -> "agda"
+    end
+
+    out_dir = Path.join("ebin", syntax_dir)
     File.mkdir_p!(out_dir)
 
     results = Enum.map(base_files, fn file ->
