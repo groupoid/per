@@ -44,17 +44,11 @@ defmodule Per.Typechecker do
   defp isOne(i), do: idv(%AST.Interval{}, %AST.Dir{val: 1}, i)
   
 
+  defp faceEnv(%AST.System{map: items}, ctx), do: faceEnv(items, ctx)
+  defp faceEnv({n, v}, ctx), do: faceEnv([{n, v}], ctx)
+  defp faceEnv(nil, ctx), do: ctx
   defp faceEnv(alpha, ctx) do
-    # Normalize face to map/list of pairs
-    face_items = case alpha do
-      m when is_map(m) and not is_struct(m) -> m
-      l when is_list(l) -> l
-      {n, v} -> [{n, v}]
-      m when is_map(m) and is_struct(m, AST.System) -> m.map
-      m when is_map(m) and is_struct(m) -> Map.from_struct(m)
-      _ -> %{}
-    end
-    Enum.reduce(face_items, ctx, fn 
+    Enum.reduce(alpha, ctx, fn 
       {name, val}, acc ->
         Map.put(acc, name, {:local, %AST.Interval{}, %AST.Dir{val: val}})
       _, acc -> acc
@@ -357,29 +351,22 @@ defmodule Per.Typechecker do
   end
 
 
-  defp upd_val(face, v) do
-    if is_map(face) and not is_struct(face) do
-       if Enum.any?(face, fn {k, _} -> is_struct(k) end) do
-         raise "LEAK DETECTED in upd_val! Face: #{inspect(face)}"
-       end
+  defp upd_val(%AST.System{map: m}, v), do: upd_val(m, v)
+  defp upd_val(m, v) do
+    if m == %{} or m == [] or m == nil do
+      v
+    else
+      do_upd_val(m, v)
     end
-
-    # Normalize face to map
-    alpha = case face do
-      m when is_map(m) and not is_struct(m) -> m
-      l when is_list(l) -> Map.new(l)
-      _ -> %{}
-    end
-    if map_size(alpha) == 0, do: v, else: do_upd_val(alpha, v)
   end
 
-  defp evalSystem(ctx, xs) do
-    xs_map = case xs do
-      m when is_map(m) and not is_struct(m) -> m
-      m when is_struct(m, AST.System) -> m.map
-      l when is_list(l) -> Map.new(l)
-      _ -> %{}
-    end
+  defp evalSystem(ctx, %AST.System{map: m}), do: do_eval_system(ctx, m)
+  defp evalSystem(ctx, m), do: do_eval_system(ctx, m)
+
+  defp do_eval_system(ctx, xs_map) do
+    if xs_map == %{} or xs_map == [] or xs_map == nil do
+      %AST.System{map: %{}}
+    else
 
     ts_list = Enum.flat_map(xs_map, fn {face_map, term} ->
       Enum.map(face_map, fn {n, d} -> Per.DNF.solve(eval(%AST.Var{name: n}, ctx), d) end)
@@ -395,6 +382,7 @@ defmodule Per.Typechecker do
           Enum.any?(ts_list, fn {beta, _} -> alpha != beta and Map.merge(alpha, beta) == alpha end)
         end)
         %AST.System{map: Map.new(final_list)}
+    end
     end
   end
 
