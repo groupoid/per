@@ -1,9 +1,14 @@
 defmodule Per.DNF do
+  @moduledoc """
+  DNF (Disjunctive Normal Form) solver for cubical formulas.
+  Used for solving face constraints and checking equivalence of formulas.
+  """
   alias Per.AST
   import Bitwise
 
   # --- Bitset Face Representation ---
 
+  @doc "Converts a face map to a bitset representation."
   def to_bits(map, index) do
     Enum.reduce(map, {0, 0}, fn {name, val}, {mask, values} ->
       pos = Map.get(index, name)
@@ -14,6 +19,7 @@ defmodule Per.DNF do
     end)
   end
 
+  @doc "Converts a bitset representation back to a face map."
   def from_bits({mask, values}, inv_index) do
     for i <- 0..63, ((mask >>> i) &&& 1) == 1, into: %{} do
       name = Map.get(inv_index, i)
@@ -25,11 +31,11 @@ defmodule Per.DNF do
   # --- Bitwise DNF Operations ---
 
   @doc """
+  Surface-level OR formula constructor with basic simplifications.
   Disjunction of conjunctions.
   Conjunction is a pair of integers {mask, values}.
   Disjunction is a MapSet of conjunction pairs.
   """
-
   def or_formula(a, b) do
     case {a, b} do
       {%AST.Dir{val: 1}, _} -> %AST.Dir{val: 1}
@@ -40,6 +46,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Surface-level AND formula constructor with basic simplifications."
   def and_formula(a, b) do
     case {a, b} do
       {%AST.Dir{val: 0}, _} -> %AST.Dir{val: 0}
@@ -70,6 +77,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Extracts disjunction (Set of conjunctions) from a formula."
   def ext_or(v, index \\ nil) do
     memo({:ext_or, v, index}, fn ->
       case v do
@@ -86,6 +94,7 @@ defmodule Per.DNF do
     end)
   end
 
+  @doc "Extracts conjunction (map) from an AND-formula."
   def ext_and(v) do
     case v do
       %AST.And{left: x, right: y} -> Map.merge(ext_and(x), ext_and(y))
@@ -97,6 +106,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Extracts conjunction (bitset) from an AND-formula."
   def ext_and_bits(v, index) do
     case v do
       %AST.And{left: x, right: y} ->
@@ -117,6 +127,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Removes redundant conjunctions from a disjunction."
   def uniq(t) do
     size = MapSet.size(t)
     if size <= 1 do
@@ -152,6 +163,7 @@ defmodule Per.DNF do
     Map.merge(x, y) == x
   end
 
+  @doc "Computes intersection of two disjunctions (distributes AND over OR)."
   def unions(t1, t2) do
     if MapSet.size(t1) == 0 or MapSet.size(t2) == 0 do
       MapSet.new()
@@ -165,6 +177,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Computes intersection of two conjunctions."
   def meet({m1, v1}, {m2, v2}) do
     if (bxor(v1, v2) &&& m1 &&& m2) == 0 do
       {:ok, {m1 ||| m2, v1 ||| v2}}
@@ -183,6 +196,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Computes the negation of a conjunction."
   def neg_conjunction({mask, values}, _index) do
     # Negation of (a1 & a2 & ...) is (~a1 | ~a2 | ...)
     for i <- 0..63, ((mask >>> i) &&& 1) == 1, into: MapSet.new() do
@@ -197,6 +211,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Computes the negation of a disjunction."
   def neg_disjunction(d, index \\ nil) do
     init = MapSet.new([if(index, do: {0, 0}, else: %{})])
     Enum.reduce(d, init, fn c, res ->
@@ -204,6 +219,7 @@ defmodule Per.DNF do
     end)
   end
 
+  @doc "Computes the negation of a formula."
   def neg_formula(v, index \\ nil) do
     case v do
       %AST.Dir{val: d} -> %AST.Dir{val: 1 - d}
@@ -212,6 +228,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Converts a conjunction element back to an AST formula."
   def contr_atom({mask, values}, inv_index) do
     # For bitsets, conjunctions in disjunction are singletons
     i = find_bit(mask)
@@ -226,6 +243,7 @@ defmodule Per.DNF do
     if ((n >>> i) &&& 1) == 1, do: i, else: find_bit(n, i + 1)
   end
 
+  @doc "Converts a conjunction back to an AST formula."
   def contr_and({m, v}, inv_index) do
     # Bitset conjunction to formula
     for i <- 0..63, ((m >>> i) &&& 1) == 1 do
@@ -241,6 +259,7 @@ defmodule Per.DNF do
     end)
   end
 
+  @doc "Converts a disjunction back to an AST formula."
   def contr_or(t, index \\ nil) do
     inv_index = if index, do: Map.new(Enum.map(index, fn {k, v} -> {v, k} end))
     Enum.reduce(t, %AST.Dir{val: 0}, fn e, acc ->
@@ -249,9 +268,12 @@ defmodule Per.DNF do
     end)
   end
 
+  @doc "Evaluates AND of two formulas via DNF."
   def eval_and(a, b), do: contr_or(unions(ext_or(a), ext_or(b)))
+  @doc "Evaluates OR of two formulas via DNF."
   def eval_or(a, b), do: contr_or(uniq(MapSet.union(ext_or(a), ext_or(b))))
 
+  @doc "Solves a formula for a given value (1 or 0), returning a disjunction."
   def solve(v, val, index \\ nil) do
     if val == 1 do
       ext_or(v, index)
@@ -260,6 +282,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Checks if two formulas are logically equivalent."
   def logic_eq(v1, v2) do
     if v1 === v2 do
       true
@@ -277,6 +300,7 @@ defmodule Per.DNF do
     end
   end
 
+  @doc "Converts a face map to an AST formula value."
   def getFaceV(face) do
     Enum.reduce(face, %Per.AST.Dir{val: 1}, fn {name, val}, acc ->
       atom = %Per.AST.Var{name: atom(name)}
@@ -285,6 +309,7 @@ defmodule Per.DNF do
     end)
   end
 
+  @doc "Converts a system map to an AST formula value."
   def getFormulaV(map) do
     Enum.reduce(map, %Per.AST.Dir{val: 0}, fn {face, _val}, acc ->
       fv = getFaceV(face)
@@ -292,6 +317,7 @@ defmodule Per.DNF do
     end)
   end
 
+  @doc "Intersection of two lists of faces."
   def meets(xs, ys) do
     (for x <- xs, y <- ys, match?({:ok, _}, meet(x, y)), do: elem(meet(x, y), 1))
     |> Enum.uniq()

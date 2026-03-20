@@ -1,6 +1,11 @@
 defmodule Per.Desugar do
+  @moduledoc """
+  Desugaring pass for the Per AST.
+  Simplifies surface language constructs into core language terms.
+  """
   alias Per.AST
 
+  @doc "Desugars all declarations in a module."
   def desugar(%AST.Module{declarations: decls} = m, env \\ %Per.Typechecker.Env{}) do
     %AST.Module{
       m
@@ -8,6 +13,7 @@ defmodule Per.Desugar do
     }
   end
 
+  @doc "Desugars a single declaration."
   def desugar_decl(decl, env \\ %Per.Typechecker.Env{})
 
   def desugar_decl(
@@ -27,6 +33,7 @@ defmodule Per.Desugar do
 
   def desugar_decl(decl, _env), do: decl
 
+  @doc "Recursively desugars an expression."
   def desugar_expression(expr, env \\ %{}, func_name \\ nil) do
     case expr do
       %AST.Lam{name: n, domain: a, body: b} ->

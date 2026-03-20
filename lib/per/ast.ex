@@ -8,217 +8,270 @@ defmodule Per.AST do
   # --- Surface Language Declarations ---
 
   defmodule Neutral do
+    @moduledoc "Neutral term with its type."
     defstruct [:term, :type]
   end
 
   defmodule Module do
+    @moduledoc "A module containing a name and declarations."
     defstruct [:name, :declarations]
   end
 
   defmodule DeclValue do
+    @moduledoc "A value declaration with name, type, expression, and optional guards/WHERE clauses."
     defstruct [:name, :type, :expr, :guards, :where_decls]
   end
 
   defmodule DeclTypeSignature do
+    @moduledoc "A type signature declaration (axiom)."
     defstruct [:name, :type]
   end
 
   defmodule DeclForeign do
+    @moduledoc "A foreign function declaration."
     defstruct [:name, :type, :erl_mod, :erl_func]
   end
 
   defmodule Let do
+    @moduledoc "A let-expression."
     defstruct [:name, :type, :val, :body]
   end
 
   # --- Core Language Terms ---
 
   defmodule Var do
+    @moduledoc "A variable."
     defstruct [:name]
   end
 
   defmodule Universe do
+    @moduledoc "A universe type at a given level."
     defstruct [:level]
   end
 
   defmodule Type do
+    @moduledoc "A type at a given cosmos and level."
     defstruct [:cosmos, :level]
   end
 
   defmodule Pi do
+    @moduledoc "A dependent function type."
     defstruct [:name, :domain, :codomain]
   end
 
   defmodule Lam do
+    @moduledoc "A lambda abstraction."
     defstruct [:name, :domain, :body]
   end
 
   defmodule App do
+    @moduledoc "Function application."
     defstruct [:func, :arg]
   end
 
   defmodule Hole do
+    @moduledoc "A placeholder hole."
     defstruct []
   end
 
   defmodule Sigma do
+    @moduledoc "A dependent pair type."
     defstruct [:name, :domain, :codomain]
   end
 
   defmodule Pair do
+    @moduledoc "A pair of terms."
     defstruct [:first, :second, tag: nil]
   end
 
   defmodule Fst do
+    @moduledoc "First projection of a pair."
     defstruct [:expr]
   end
 
   defmodule Snd do
+    @moduledoc "Second projection of a pair."
     defstruct [:expr]
   end
 
   defmodule Field do
+    @moduledoc "Field projection of a record."
     defstruct [:expr, :name]
   end
 
   defmodule Id do
+    @moduledoc "Identity type."
     defstruct [:type]
   end
 
   defmodule Refl do
+    @moduledoc "Reflexivity term."
     defstruct [:expr]
   end
 
   defmodule IdJ do
+    @moduledoc "Identity J-eliminator."
     defstruct [:expr]
   end
 
   defmodule PathP do
+    @moduledoc "Path type."
     defstruct [:path, :u0, :u1]
   end
 
   defmodule PLam do
+    @moduledoc "Path lambda abstraction."
     defstruct [:name, :body]
   end
 
   defmodule AppFormula do
+    @moduledoc "Formula application (at-sign)."
     defstruct [:left, :right]
   end
 
   defmodule Interval do
+    @moduledoc "Interval type I."
     defstruct []
   end
 
   defmodule Dir do
+    @moduledoc "Direction (0 or 1)."
     defstruct [:val] # 0 or 1
   end
 
   defmodule And do
+    @moduledoc "Logical AND formula."
     defstruct [:left, :right]
   end
 
   defmodule Or do
+    @moduledoc "Logical OR formula."
     defstruct [:left, :right]
   end
 
   defmodule Neg do
+    @moduledoc "Logical NEG formula."
     defstruct [:expr]
   end
 
   defmodule Transp do
+    @moduledoc "Transport operation."
     defstruct [:path, :phi]
   end
 
   defmodule HComp do
+    @moduledoc "Homogeneous composition operation."
     defstruct [:type, :phi, :u, :u0]
   end
 
   defmodule Partial do
+    @moduledoc "Partial type."
     defstruct [:expr]
   end
 
   defmodule PartialP do
+    @moduledoc "PartialP type."
     defstruct [:type, :phi]
   end
 
   defmodule System do
+    @moduledoc "System term (map of face -> expr)."
     defstruct [:map] # map of face -> expr
   end
 
   defmodule Sub do
+    @moduledoc "Sub type."
     defstruct [:type, :phi, :u]
   end
 
   defmodule Inc do
+    @moduledoc "inc operation."
     defstruct [:type, :phi]
   end
 
   defmodule Ouc do
+    @moduledoc "ouc operation."
     defstruct [:expr]
   end
 
   defmodule Glue do
+    @moduledoc "Glue type."
     defstruct [:type]
   end
 
   defmodule GlueElem do
+    @moduledoc "GlueElem term."
     defstruct [:phi, :u, :a]
   end
 
   defmodule Unglue do
+    @moduledoc "Unglue term."
     defstruct [:phi, :u, :e]
   end
 
   defmodule Empty do
+    @moduledoc "Empty type."
     defstruct []
   end
 
   defmodule IndEmpty do
+    @moduledoc "IndEmpty eliminator."
     defstruct [:type]
   end
 
   defmodule Unit do
+    @moduledoc "Unit type."
     defstruct []
   end
 
   defmodule Star do
+    @moduledoc "Star term (unit constant)."
     defstruct []
   end
 
   defmodule IndUnit do
+    @moduledoc "IndUnit eliminator."
     defstruct [:type]
   end
 
   defmodule Bool do
+    @moduledoc "Boolean type."
     defstruct []
   end
 
   defmodule FalseConstant do
+    @moduledoc "False constant (0₂)."
     defstruct []
   end
 
   defmodule TrueConstant do
+    @moduledoc "True constant (1₂)."
     defstruct []
   end
 
   defmodule IndBool do
+    @moduledoc "IndBool eliminator."
     defstruct [:type]
   end
 
   defmodule W do
+    @moduledoc "W-type."
     defstruct [:name, :domain, :codomain]
   end
 
   defmodule Sup do
+    @moduledoc "sup term (W-type constructor)."
     defstruct [:a, :b]
   end
 
   defmodule IndW do
+    @moduledoc "IndW eliminator."
     defstruct [:a, :b, :motive]
   end
 
   # --- Pretty Printing ---
 
+  @doc "Converts an AST term to its string representation."
   def to_string(term) do
     case term do
       %Var{name: name} ->
@@ -319,11 +372,17 @@ defmodule Per.AST do
 
   # --- Type/Term Utilities ---
 
+  @doc "Creates a Pi type."
   def pi(name, domain, codomain), do: %Pi{name: name, domain: domain, codomain: codomain}
+  @doc "Creates a non-dependent function type (arrow)."
   def arrow(a, b), do: %Pi{name: "_", domain: a, codomain: b}
+  @doc "Creates a universe type."
   def universe(i), do: %Universe{level: i}
+  @doc "Convenience for Nat variable."
   def nat(), do: %Var{name: "Nat"}
+  @doc "Convenience for Bool variable."
   def bool(), do: %Var{name: "Bool"}
+  @doc "Convenience for Unit variable."
   def unit(), do: %Var{name: "Unit"}
 
   defp int_to_subscript(n) do
@@ -346,6 +405,7 @@ defmodule Per.AST do
     |> Enum.join()
   end
 
+  @doc "Collects all dimension atoms (variable names) from a formula."
   def collect_atoms(expr) do
     do_collect_atoms(expr, MapSet.new())
     |> MapSet.to_list()

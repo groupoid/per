@@ -4,6 +4,7 @@ defmodule Per.Codegen do
   """
   alias Per.AST
 
+  @doc "Generates Erlang Abstract Format from a Per module."
   def generate(%AST.Module{name: mod_name, declarations: decls}, env \\ %Per.Typechecker.Env{}) do
     current_mod = String.to_atom(mod_name)
     functions = Enum.flat_map(decls, &generate_decl(&1, env, current_mod))

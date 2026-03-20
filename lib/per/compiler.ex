@@ -4,6 +4,7 @@ defmodule Per.Compiler do
   """
   alias Per.{Layout, Desugar, Codegen, AST}
 
+  @doc "Compiles a Per module from source string."
   def compile_module(source, opts \\ []) do
     syntax = Keyword.get(opts, :syntax, :lean)
     lexer = case syntax do
@@ -99,6 +100,7 @@ defmodule Per.Compiler do
     %{env | name_to_mod: new_mapping}
   end
 
+  @doc "Resolves and loads all imported modules."
   def resolve_imports(%AST.Module{name: mod_name, declarations: decls}, env, opts) do
     # Implicitly import Prelude if it exists and we are not in Prelude
     env =
@@ -127,6 +129,7 @@ defmodule Per.Compiler do
     end)
   end
 
+  @doc "Loads a module by name into the environment."
   def load_module_to_env(mod_name, env, opts \\ []) do
     if MapSet.member?(env.files, mod_name) do
       {:ok, env}
@@ -165,6 +168,7 @@ defmodule Per.Compiler do
     end
   end
 
+  @doc "Finds the file path for a module name."
   def find_module_path(mod_name, syntax \\ :lean) do
     # Search in priv/per, test/per, and priv/foundations
     base_dir = if syntax == :agda, do: "priv/agda/", else: "priv/per/"
@@ -192,6 +196,7 @@ defmodule Per.Compiler do
 
   end
 
+  @doc "Loads a compiled binary into the Erlang VM."
   def load_module(mod, bin) do
     :code.load_binary(mod, ~c"#{mod}.beam", bin)
   end

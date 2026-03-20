@@ -1,8 +1,10 @@
 defmodule Per.Lexer do
   @moduledoc """
-  Lexer for Per (Lean-like syntax).
+  Lexer for the Per language.
+  Converts source text into a list of tokens.
   """
 
+  @doc "Lexes the given string into a list of tokens."
   def lex(input) do
     lex(String.to_charlist(input), 1, 1, [])
   end

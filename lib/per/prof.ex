@@ -1,14 +1,22 @@
 defmodule Prof do
+  @moduledoc """
+  Profiling utility for the Per compiler.
+  Used to measure execution time of different compilation phases.
+  """
+
+  @doc "Starts the profiler."
   def start() do
     Process.put(:prof_data, %{})
     Process.put(:prof_depth, 0)
     Process.put(:prof_active, true)
   end
 
+  @doc "Stops the profiler."
   def stop() do
     Process.put(:prof_active, false)
   end
 
+  @doc "Measures the execution time of a function."
   def measure(name, func) do
     if Process.get(:prof_active) do
       depth = Process.get(:prof_depth, 0)
@@ -29,6 +37,7 @@ defmodule Prof do
     end
   end
 
+  @doc "Prints the collected profiling data."
   def print() do
     data = Process.get(:prof_data, %{})
 

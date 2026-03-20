@@ -1,4 +1,10 @@
 defmodule Per.Layout do
+  @moduledoc """
+  Layout resolver for the Per language.
+  Handles indentation-based block structure (off-side rule).
+  """
+
+  @doc "Resolves layout for a list of tokens, inserting virtual delimiters."
   def resolve(tokens) do
     res = process(tokens, [1], -1, false, [])
 

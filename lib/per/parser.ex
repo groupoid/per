@@ -1,6 +1,11 @@
 defmodule Per.Parser do
+  @moduledoc """
+  Parser for the Per language.
+  Converts tokens into an AST (Abstract Syntax Tree).
+  """
   alias Per.AST
 
+  @doc "Parses a list of tokens into a module."
   def parse(tokens) when is_list(tokens) do
     # Strip explicit newlines and virtual semicolons, Layout has already handled block structure
     tokens = Enum.filter(tokens, fn t -> elem(t, 0) not in [:newline, :v_semicolon] end)
@@ -9,10 +14,12 @@ defmodule Per.Parser do
 
   def parse({:error, _} = err), do: err
 
+  @doc "Parses a list of tokens into an expression."
   def parse_expression(tokens) do
     parse_expr(tokens)
   end
 
+  @doc "Parses a list of tokens into a declaration."
   def parse_declaration(tokens) do
     parse_decl(tokens)
   end

@@ -1,7 +1,12 @@
 defmodule Per.Typechecker do
+  @moduledoc """
+  Core typechecker for the Per language, implementing cubical type theory.
+  Includes evaluation, conversion checking, and type checking.
+  """
   alias Per.AST
 
   defmodule Env do
+    @moduledoc "Typechecking environment."
     defstruct env: %{}, ctx: %{}, files: MapSet.new(), deadline: nil, defs: %{}, name_to_mod: %{}
   end
 
@@ -9,9 +14,11 @@ defmodule Per.Typechecker do
 
   # --- OCaml-style Helpers ---
 
+  @doc "Extracts domain and name/codomain from a Pi type."
   def extPiG(%AST.Pi{name: name, domain: t, codomain: g}), do: {t, {name, g}}
   def extPiG(u), do: raise "Expected Pi, got: #{inspect(u)}"
 
+  @doc "Extracts domain and name/codomain from a Sigma type."
   def extSigG(%AST.Sigma{name: name, domain: t, codomain: g}), do: {t, {name, g}}
   def extSigG(u), do: raise "Expected Sigma, got: #{inspect(u)}"
 
@@ -24,17 +31,23 @@ defmodule Per.Typechecker do
         raise "Expected Universe, got: #{inspect(v)}"
     end
   end
+  @doc "Extracts level from Universe or Dir."
   def extKan(%AST.Universe{level: n}), do: n
   def extKan(%AST.Dir{val: n}), do: n
   def extKan(v), do: raise "Expected Universe or Dir, got: #{inspect(v)}"
+  @doc "Helper for Set or Kan types."
   def extSet_or_Kan(v), do: extSet(v)
 
+  @doc "Extracts path, u0, and u1 from a PathP type."
   def extPathP(%AST.PathP{path: v, u0: u0, u1: u1}), do: {v, u0, u1}
   def extPathP(v), do: raise "Expected PathP, got: #{inspect(v)}"
 
+  @doc "Identity value constructor."
   def idv(t, x, y), do: %AST.App{func: %AST.App{func: %AST.Id{type: t}, arg: x}, arg: y}
+  @doc "Implication value constructor (non-dependent Pi)."
   def implv(a, b), do: %AST.Pi{name: "_", domain: a, codomain: fn _ -> b end}
 
+  @doc "Maximum of two universe levels."
   def imax(u, v) do
     lu = case u do %AST.Universe{level: l} -> l; %AST.Dir{val: l} -> l; _ -> 0 end
     lv = case v do %AST.Universe{level: l} -> l; %AST.Dir{val: l} -> l; _ -> 0 end
@@ -79,24 +92,30 @@ defmodule Per.Typechecker do
 
   defp is1(v), do: match?(%AST.Dir{val: 1}, v)
 
+  @doc "Evaluates OR formula."
   def evalOr(v1, v2) do
     Per.DNF.eval_or(v1, v2)
   end
+  @doc "Evaluates AND formula."
   def evalAnd(v1, v2), do: Per.DNF.eval_and(v1, v2)
+  @doc "Negates a formula."
   def negFormula(v) do
     Per.DNF.neg_formula(v)
   end
 
+  @doc "First projection evaluator."
   def vfst(%AST.Pair{first: u}), do: u
   def vfst(%AST.Neutral{term: v, type: %AST.Sigma{domain: a, codomain: _b}}), do: %AST.Neutral{term: %AST.Fst{expr: v}, type: a}
   def vfst(v), do: %AST.Fst{expr: v}
 
+  @doc "Second projection evaluator."
   def vsnd(%AST.Pair{second: u}), do: u
   def vsnd(%AST.Neutral{term: v, type: %AST.Sigma{domain: a, codomain: b}}), do: %AST.Neutral{term: %AST.Snd{expr: v}, type: b.(vfst(%AST.Neutral{term: v, type: %AST.Sigma{domain: a, codomain: b}}))}
   def vsnd(v), do: %AST.Snd{expr: v}
 
   # --- Evaluation ---
 
+  @doc "Evaluates an expression in a given context."
   def eval(expr, ctx) do
     do_eval(expr, ctx)
   end
@@ -392,6 +411,7 @@ defmodule Per.Typechecker do
 
   # --- Conversion ---
 
+  @doc "Infers the type of a value (in empty context)."
   def inferV(v) do
      try do
        infer(%{}, v)
@@ -408,6 +428,7 @@ defmodule Per.Typechecker do
     end
   end
 
+  @doc "Checks if two values are convertible (equivalent)."
   def conv(v1, v2) do
     try do
       cond do
@@ -602,6 +623,7 @@ defmodule Per.Typechecker do
     end
   end
 
+  @doc "Asserts that two values are convertible, raising an error if not."
   def eqNf(v1, v2) do
     if conv(v1, v2) do
       :ok
@@ -617,6 +639,7 @@ defmodule Per.Typechecker do
 
   # --- Cubical Operations ---
 
+  @doc "Cubical transport operation."
   def transport(p, phi, u0) do
     # transp p phi u0
     # OCaml: let (_, _, v) = freshDim () in match appFormula p v, phi with
@@ -681,6 +704,7 @@ defmodule Per.Typechecker do
     end
   end
 
+  @doc "Cubical homogeneous composition operation."
   def hcomp(t, r, u, u0) do
     case {t, r} do
       {t_v, %AST.Dir{val: 1}} ->
@@ -731,6 +755,7 @@ defmodule Per.Typechecker do
     end
   end
 
+  @doc "Cubical hfill operation."
   def hfill(t, r, u, u0, j) do
     # hcomp t ((-j) \/ r) (\ i -> [r -> u (i /\ j) 1=1, (j=0) -> u0]) u0
     hcomp(t, evalOr(negFormula(j), r), %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
@@ -740,6 +765,7 @@ defmodule Per.Typechecker do
     end}, u0)
   end
 
+  @doc "Cubical composition operation."
   def comp(t, r, u, u0) do
     # hcomp (t 1) r (\ i -> transp (\ j -> t (i \/ j)) i (u i 1=1)) (transp (\ i -> t i) 0 u0)
     hcomp(t.(%AST.Dir{val: 1}), r, %AST.Lam{name: "i", domain: %AST.Interval{}, body: fn i ->
@@ -749,6 +775,7 @@ defmodule Per.Typechecker do
     end}, transport(%AST.PLam{name: "i", body: fn i -> t.(i) end}, %AST.Dir{val: 0}, u0))
   end
 
+  @doc "Cubical transFill operation."
   def transFill(p, phi, u0, j) do
     # transp (\ i -> p (i /\ j)) (phi \/ -j) u0
     transport(%AST.PLam{name: "i", body: fn i -> appFormula(p, evalAnd(i, j)) end}, evalOr(phi, negFormula(j)), u0)
@@ -756,6 +783,7 @@ defmodule Per.Typechecker do
 
   # --- Type Checking and Inference ---
 
+  @doc "Checks an expression against a type in a given context."
   def check(ctx, e0, t0) do
     try do
       case {e0, t0} do
@@ -830,6 +858,7 @@ defmodule Per.Typechecker do
     end
   end
 
+  @doc "Infers the type of an expression in a given context."
   def infer(ctx, e) do
     eval(do_infer(ctx, e), ctx)
   end
@@ -1117,11 +1146,13 @@ defmodule Per.Typechecker do
     %AST.W{name: "x", domain: a, codomain: fn x -> app(b, x) end}
   end
 
+  @doc "Normalizes a term by evaluating it and then reading it back."
   def normalize(env, term) do
     val = eval(term, env.ctx)
     readback(val)
   end
 
+  @doc "Converts a value back to an AST term (readback/reify)."
   def readback(val) do
     case val do
       %AST.Universe{level: l} -> %AST.Universe{level: l}
@@ -1293,6 +1324,7 @@ defmodule Per.Typechecker do
     end
   end
 
+  @doc "Checks all declarations in a module."
   def check_module(%AST.Module{declarations: decls}, env) do
     # Build a lookup for types to support checking with signatures
     types = Enum.reduce(decls, %{}, fn
