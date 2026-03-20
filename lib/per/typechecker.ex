@@ -55,8 +55,6 @@ defmodule Per.Typechecker do
   end
 
   defp isOne(i), do: idv(%AST.Interval{}, %AST.Dir{val: 1}, i)
-  
-
   defp faceEnv(%AST.System{map: items}, ctx), do: faceEnv(items, ctx)
   defp faceEnv({n, v}, ctx), do: faceEnv([{n, v}], ctx)
   defp faceEnv(nil, ctx), do: ctx
@@ -157,10 +155,8 @@ defmodule Per.Typechecker do
            domain = if Map.has_key?(expr, :domain) && expr.domain, do: eval(expr.domain, ctx), else: %AST.Hole{}
            %AST.Lam{name: x, domain: domain, body: closByVal(ctx, x, domain, b)}
         end
-      %AST.App{func: f, arg: x} ->
-        app(eval(f, ctx), eval(x, ctx))
-      %AST.Pair{first: e1, second: e2, tag: r} ->
-        %AST.Pair{first: eval(e1, ctx), second: eval(e2, ctx), tag: r}
+      %AST.App{func: f, arg: x} -> app(eval(f, ctx), eval(x, ctx))
+      %AST.Pair{first: e1, second: e2, tag: r} -> %AST.Pair{first: eval(e1, ctx), second: eval(e2, ctx), tag: r}
       %AST.Fst{expr: e} -> vfst(eval(e, ctx))
       %AST.Snd{expr: e} -> vsnd(eval(e, ctx))
       %AST.Field{expr: e, name: p} -> evalField(p, eval(e, ctx))
@@ -168,31 +164,20 @@ defmodule Per.Typechecker do
       %AST.Refl{expr: e} -> %AST.Refl{expr: eval(e, ctx)}
       %AST.IdJ{expr: e} -> %AST.IdJ{expr: eval(e, ctx)}
       %AST.PathP{path: e, u0: u0, u1: u1} -> %AST.PathP{path: eval(e, ctx), u0: eval(u0, ctx), u1: eval(u1, ctx)}
-      %AST.PLam{name: x, body: e} ->
-        if is_function(e) do
-           %AST.PLam{name: x, body: e}
-        else
-           %AST.PLam{name: x, body: fn r -> eval(e, Map.put(ctx, x, {:local, %AST.Interval{}, r})) end}
-        end
-      %AST.AppFormula{left: e, right: x} ->
-        appFormula(eval(e, ctx), eval(x, ctx))
+      %AST.PLam{name: x, body: e} -> if is_function(e) do %AST.PLam{name: x, body: e} else %AST.PLam{name: x, body: fn r -> eval(e, Map.put(ctx, x, {:local, %AST.Interval{}, r})) end } end
+      %AST.AppFormula{left: e, right: x} -> appFormula(eval(e, ctx), eval(x, ctx))
       %AST.Interval{} -> expr
       %AST.Dir{} -> expr
       %AST.And{left: e1, right: e2} -> evalAnd(eval(e1, ctx), eval(e2, ctx))
       %AST.Or{left: e1, right: e2} -> evalOr(eval(e1, ctx), eval(e2, ctx))
       %AST.Neg{expr: e} -> negFormula(eval(e, ctx))
       %AST.Transp{path: p, phi: i} -> %AST.Transp{path: eval(p, ctx), phi: eval(i, ctx)}
-      %AST.HComp{type: t, phi: r, u: u, u0: u0} ->
-        hcomp(eval(t, ctx), eval(r, ctx), eval(u, ctx), eval(u0, ctx))
-      %AST.Partial{expr: e} ->
-        # OCaml: | EPartial e -> let (i, _, _) = freshDim () in VLam (VI, (i, fun r -> let ts = mkSystem (List.map (fun mu -> (mu, eval e (faceEnv mu ctx))) (solve r One)) in VPartialP (VSystem ts, r)))
-        # For now, keep it simple or implement freshDim
-        %AST.Partial{expr: eval(e, ctx)}
-      %AST.PartialP{type: t, phi: r} ->
-        %AST.PartialP{type: eval(t, ctx), phi: eval(r, ctx)}
+      %AST.HComp{type: t, phi: r, u: u, u0: u0} -> hcomp(eval(t, ctx), eval(r, ctx), eval(u, ctx), eval(u0, ctx))
+      # TODO: OCaml: | EPartial e -> let (i, _, _) = freshDim () in VLam (VI, (i, fun r -> let ts = mkSystem (List.map (fun mu -> (mu, eval e (faceEnv mu ctx))) (solve r One)) in VPartialP (VSystem ts, r)))
+      %AST.Partial{expr: e} -> %AST.Partial{expr: eval(e, ctx)}
+      %AST.PartialP{type: t, phi: r} -> %AST.PartialP{type: eval(t, ctx), phi: eval(r, ctx)}
       %AST.System{map: xs} -> evalSystem(ctx, xs)
-      %AST.Sub{type: a, phi: i, u: u} ->
-        %AST.Sub{type: eval(a, ctx), phi: eval(i, ctx), u: eval(u, ctx)}
+      %AST.Sub{type: a, phi: i, u: u} -> %AST.Sub{type: eval(a, ctx), phi: eval(i, ctx), u: eval(u, ctx)}
       %AST.Inc{type: t, phi: r} -> %AST.Inc{type: eval(t, ctx), phi: eval(r, ctx)}
       %AST.Ouc{expr: e} -> evalOuc(eval(e, ctx))
       %AST.Empty{} -> %AST.Empty{}
@@ -204,16 +189,9 @@ defmodule Per.Typechecker do
       %AST.FalseConstant{} -> %AST.FalseConstant{}
       %AST.TrueConstant{} -> %AST.TrueConstant{}
       %AST.IndBool{type: e} -> %AST.IndBool{type: eval(e, ctx)}
-      %AST.W{name: x, domain: a, codomain: b} ->
-        if is_function(b) do
-           %AST.W{name: x, domain: eval(a, ctx), codomain: b}
-        else
-           t = eval(a, ctx)
-           %AST.W{name: x, domain: t, codomain: closByVal(ctx, x, t, b)}
-        end
+      %AST.W{name: x, domain: a, codomain: b} -> if is_function(b) do %AST.W{name: x, domain: eval(a, ctx), codomain: b} else t = eval(a, ctx) ; %AST.W{name: x, domain: t, codomain: closByVal(ctx, x, t, b)} end
       %AST.Sup{a: a, b: b} -> %AST.Sup{a: eval(a, ctx), b: eval(b, ctx)}
-      %AST.IndW{a: a, b: b, motive: m} ->
-        %AST.IndW{a: eval(a, ctx), b: eval(b, ctx), motive: eval(m, ctx)}
+      %AST.IndW{a: a, b: b, motive: m} -> %AST.IndW{a: eval(a, ctx), b: eval(b, ctx), motive: eval(m, ctx)}
       _ -> expr
     end
   end
@@ -469,22 +447,14 @@ defmodule Per.Typechecker do
         v2_eval = g.(x)
         conv(v1_eval, v2_eval)
 
-      {%AST.And{}, _} -> 
-        Per.DNF.logic_eq(v1, v2)
-      {%AST.Or{}, _} -> 
-        Per.DNF.logic_eq(v1, v2)
-      {%AST.Neg{}, _} -> 
-        Per.DNF.logic_eq(v1, v2)
-      {%AST.Dir{}, _} -> 
-        Per.DNF.logic_eq(v1, v2)
-      {_, %AST.And{}} -> 
-        Per.DNF.logic_eq(v1, v2)
-      {_, %AST.Or{}} -> 
-        Per.DNF.logic_eq(v1, v2)
-      {_, %AST.Neg{}} -> 
-        Per.DNF.logic_eq(v1, v2)
-      {_, %AST.Dir{}} -> 
-        Per.DNF.logic_eq(v1, v2)
+      {%AST.And{}, _} -> Per.DNF.logic_eq(v1, v2)
+      {%AST.Or{}, _} -> Per.DNF.logic_eq(v1, v2)
+      {%AST.Neg{}, _} -> Per.DNF.logic_eq(v1, v2)
+      {%AST.Dir{}, _} -> Per.DNF.logic_eq(v1, v2)
+      {_, %AST.And{}} -> Per.DNF.logic_eq(v1, v2)
+      {_, %AST.Or{}} -> Per.DNF.logic_eq(v1, v2)
+      {_, %AST.Neg{}} -> Per.DNF.logic_eq(v1, v2)
+      {_, %AST.Dir{}} -> Per.DNF.logic_eq(v1, v2)
 
       {f, %AST.PLam{body: g}} when is_function(g) ->
         x = %AST.Neutral{term: %AST.Var{name: "j#{System.unique_integer([:positive])}"}, type: %AST.Interval{}}
@@ -503,13 +473,10 @@ defmodule Per.Typechecker do
         x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: dom}
         conv(f.(x), app(g, x))
 
-      {%AST.Neutral{term: t1}, %AST.Neutral{term: t2}} ->
-        conv(t1, t2)
+      {%AST.Neutral{term: t1}, %AST.Neutral{term: t2}} -> conv(t1, t2)
       {%AST.Neutral{term: t1}, v2} -> conv(t1, v2)
       {v1, %AST.Neutral{term: t2}} -> conv(v1, t2)
-
-      {%AST.Universe{level: u}, %AST.Universe{level: v}} ->
-        Process.get(:per_girard, false) or u == v
+      {%AST.Universe{level: u}, %AST.Universe{level: v}} -> Process.get(:per_girard, false) or u == v
       {%AST.Pair{first: a, second: b}, %AST.Pair{first: c, second: d}} -> conv(a, c) && conv(b, d)
 
 
@@ -525,32 +492,15 @@ defmodule Per.Typechecker do
            end)
            res1 && res2
          end
-        
 
-      {%Per.AST.System{map: ts}, v} ->
-        Enum.all?(ts, fn {face, v_face} -> conv(upd_val(face, v), v_face) end)
-      {v, %Per.AST.System{map: ts}} ->
-        Enum.all?(ts, fn {face, v_face} -> conv(upd_val(face, v), v_face) end)
-
-      {%AST.HComp{type: t1, phi: r1, u: u1, u0: v1}, %AST.HComp{type: t2, phi: r2, u: u2, u0: v2}} ->
-         conv(t1, t2) && conv(r1, r2) && conv(u1, u2) && conv(v1, v2)
-
-      {%AST.Transp{path: p1, phi: i1}, %AST.Transp{path: p2, phi: i2}} ->
-        conv(p1, p2) && conv(i1, i2)
-
-      {%AST.Pi{domain: a, codomain: f}, %AST.Pi{domain: b, codomain: g}} ->
-        x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: a}
-        conv(a, b) && conv(f.(x), g.(x))
-
-      {%AST.Sigma{domain: a, codomain: f}, %AST.Sigma{domain: b, codomain: g}} ->
-        x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: a}
-        conv(a, b) && conv(f.(x), g.(x))
-
-      {%AST.PathP{path: p1, u0: u0, u1: u1}, %AST.PathP{path: p2, u0: v0, u1: v1}} ->
-        conv(p1, p2) && conv(u0, v0) && conv(u1, v1)
-
-      {%AST.AppFormula{left: f, right: r1}, %AST.AppFormula{left: g, right: r2}} ->
-        conv(f, g) && conv(r1, r2)
+      {%Per.AST.System{map: ts}, v} -> Enum.all?(ts, fn {face, v_face} -> conv(upd_val(face, v), v_face) end)
+      {v, %Per.AST.System{map: ts}} -> Enum.all?(ts, fn {face, v_face} -> conv(upd_val(face, v), v_face) end)
+      {%AST.HComp{type: t1, phi: r1, u: u1, u0: v1}, %AST.HComp{type: t2, phi: r2, u: u2, u0: v2}} -> conv(t1, t2) && conv(r1, r2) && conv(u1, u2) && conv(v1, v2)
+      {%AST.Transp{path: p1, phi: i1}, %AST.Transp{path: p2, phi: i2}} -> conv(p1, p2) && conv(i1, i2)
+      {%AST.Pi{domain: a, codomain: f}, %AST.Pi{domain: b, codomain: g}} -> x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: a} ; conv(a, b) && conv(f.(x), g.(x))
+      {%AST.Sigma{domain: a, codomain: f}, %AST.Sigma{domain: b, codomain: g}} -> x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: a} ;conv(a, b) && conv(f.(x), g.(x))
+      {%AST.PathP{path: p1, u0: u0, u1: u1}, %AST.PathP{path: p2, u0: v0, u1: v1}} -> conv(p1, p2) && conv(u0, v0) && conv(u1, v1)
+      {%AST.AppFormula{left: f, right: r1}, %AST.AppFormula{left: g, right: r2}} -> conv(f, g) && conv(r1, r2)
 
       {%AST.AppFormula{left: f, right: x}, g} ->
         v_f_x = appFormula(f, x)
@@ -565,55 +515,32 @@ defmodule Per.Typechecker do
           %AST.AppFormula{} -> false
           _ -> conv(f, v_g_x)
         end
+
       {%AST.Interval{}, %AST.Interval{}} -> true
-      {%AST.Universe{level: u}, %AST.Universe{level: v}} ->
-        Process.get(:per_girard, false) or u == v
-
-
-      {%AST.App{func: f1, arg: a1}, %AST.App{func: f2, arg: a2}} ->
-        conv(f1, f2) && conv(a1, a2)
-
+      {%AST.Universe{level: u}, %AST.Universe{level: v}} -> Process.get(:per_girard, false) or u == v
+      {%AST.App{func: f1, arg: a1}, %AST.App{func: f2, arg: a2}} -> conv(f1, f2) && conv(a1, a2)
       {%AST.Fst{expr: e1}, %AST.Fst{expr: e2}} -> conv(e1, e2)
       {%AST.Snd{expr: e1}, %AST.Snd{expr: e2}} -> conv(e1, e2)
-
-      {%AST.W{domain: a, codomain: f}, %AST.W{domain: b, codomain: g}} ->
-        x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: a}
-        conv(a, b) && conv(f.(x), g.(x))
-
+      {%AST.W{domain: a, codomain: f}, %AST.W{domain: b, codomain: g}} -> x = %AST.Neutral{term: %AST.Var{name: "x#{System.unique_integer([:positive])}"}, type: a} ; conv(a, b) && conv(f.(x), g.(x))
       {%AST.Var{name: u}, %AST.Var{name: v}} -> u == v
-
       {%AST.Empty{}, %AST.Empty{}} -> true
       {%AST.Unit{}, %AST.Unit{}} -> true
       {%AST.Star{}, %AST.Star{}} -> true
       {%AST.Bool{}, %AST.Bool{}} -> true
       {%AST.FalseConstant{}, %AST.FalseConstant{}} -> true
       {%AST.TrueConstant{}, %AST.TrueConstant{}} -> true
-
-      {%AST.Sup{a: a1, b: b1}, %AST.Sup{a: a2, b: b2}} ->
-        conv(a1, a2) && conv(b1, b2)
-
-      {%AST.IndW{a: a1, b: b1, motive: c1}, %AST.IndW{a: a2, b: b2, motive: c2}} ->
-        conv(a1, a2) && conv(b1, b2) && conv(c1, c2)
-
+      {%AST.Sup{a: a1, b: b1}, %AST.Sup{a: a2, b: b2}} -> conv(a1, a2) && conv(b1, b2)
+      {%AST.IndW{a: a1, b: b1, motive: c1}, %AST.IndW{a: a2, b: b2, motive: c2}} -> conv(a1, a2) && conv(b1, b2) && conv(c1, c2)
       {%AST.IndBool{type: a}, %AST.IndBool{type: b}} -> conv(a, b)
       {%AST.IndUnit{type: a}, %AST.IndUnit{type: b}} -> conv(a, b)
       {%AST.IndEmpty{type: a}, %AST.IndEmpty{type: b}} -> conv(a, b)
-
       {%AST.Partial{expr: e1}, %AST.Partial{expr: e2}} -> conv(e1, e2)
-      {%AST.PartialP{type: t1, phi: r1}, %AST.PartialP{type: t2, phi: r2}} ->
-        conv(r1, r2) && conv(t1, t2)
-      {%AST.Sub{type: t1, phi: r1, u: u1}, %AST.Sub{type: t2, phi: r2, u: u2}} ->
-        conv(t1, t2) && conv(r1, r2) && conv(u1, u2)
-      {%AST.Inc{type: t1, phi: r1}, %AST.Inc{type: t2, phi: r2}} ->
-        conv(t1, t2) && conv(r1, r2)
+      {%AST.PartialP{type: t1, phi: r1}, %AST.PartialP{type: t2, phi: r2}} -> conv(r1, r2) && conv(t1, t2)
+      {%AST.Sub{type: t1, phi: r1, u: u1}, %AST.Sub{type: t2, phi: r2, u: u2}} -> conv(t1, t2) && conv(r1, r2) && conv(u1, u2)
+      {%AST.Inc{type: t1, phi: r1}, %AST.Inc{type: t2, phi: r2}} -> conv(t1, t2) && conv(r1, r2)
       {%AST.Ouc{expr: e1}, %AST.Ouc{expr: e2}} -> conv(e1, e2)
-
-      {v, %AST.Pair{first: a, second: b}} ->
-        conv(vfst(v), a) && conv(vsnd(v), b)
-
-      {%AST.Pair{first: a, second: b}, v} ->
-        conv(a, vfst(v)) && conv(b, vsnd(v))
-
+      {v, %AST.Pair{first: a, second: b}} -> conv(vfst(v), a) && conv(vsnd(v), b)
+      {%AST.Pair{first: a, second: b}, v} -> conv(a, vfst(v)) && conv(b, vsnd(v))
       {%AST.Id{type: a}, %AST.Id{type: b}} -> conv(a, b)
       {%AST.Refl{expr: a}, %AST.Refl{expr: b}} -> conv(a, b)
       {%AST.IdJ{expr: a}, %AST.IdJ{expr: b}} -> conv(a, b)
@@ -639,7 +566,7 @@ defmodule Per.Typechecker do
 
   # --- Cubical Operations ---
 
-  @doc "Cubical transport operation."
+  @doc "Cubical generalized transport operation."
   def transport(p, phi, u0) do
     # transp p phi u0
     # OCaml: let (_, _, v) = freshDim () in match appFormula p v, phi with
@@ -657,7 +584,7 @@ defmodule Per.Typechecker do
             {dom_neg_j, _} = extPiG(appFormula(p, negFormula(j)))
             dom_neg_j
           end}, phi, x, i) end
-          
+
           p_cod = %AST.PLam{name: "i", body: fn i ->
             {_, {_, cod_i}} = extPiG(appFormula(p, i))
             cod_i.(v.(i))
@@ -730,13 +657,13 @@ defmodule Per.Typechecker do
         v1_hfill = fn j -> hfill(dom, r, %AST.Lam{name: "k", domain: %AST.Interval{}, body: fn k ->
           border(Per.DNF.solve(r, 1), vfst(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}})))
         end}, vfst(u0), j) end
-        
+
         v1_final = v1_hfill.(%AST.Dir{val: 1})
-        
+
         v2 = comp(fn i -> cod.(v1_hfill.(i)) end, r, %AST.Lam{name: "k", domain: %AST.Interval{}, body: fn k ->
           border(Per.DNF.solve(r, 1), vsnd(app(app(u, k), %AST.Refl{expr: %AST.Dir{val: 1}})))
         end}, vsnd(u0))
-        
+
         %AST.Pair{first: v1_final, second: v2}
 
       {%AST.PathP{path: t_path, u0: v, u1: w}, _} ->
@@ -1156,40 +1083,29 @@ defmodule Per.Typechecker do
   def readback(val) do
     case val do
       %AST.Universe{level: l} -> %AST.Universe{level: l}
-      %AST.Pi{name: x, domain: a, codomain: f} when is_function(f) ->
-        %AST.Pi{name: x, domain: readback(a), codomain: readback(f.(%AST.Var{name: x}))}
-      %AST.Sigma{name: x, domain: a, codomain: f} when is_function(f) ->
-        %AST.Sigma{name: x, domain: readback(a), codomain: readback(f.(%AST.Var{name: x}))}
-      %AST.Lam{name: x, body: f} when is_function(f) ->
-        # Type is not strictly needed for readback of Lam if we don't store it
-        %AST.Lam{name: x, body: readback(f.(%AST.Var{name: x}))}
-      %AST.Pair{first: a, second: b, tag: r} ->
-        %AST.Pair{first: readback(a), second: readback(b), tag: r}
+      %AST.Pi{name: x, domain: a, codomain: f} when is_function(f) -> %AST.Pi{name: x, domain: readback(a), codomain: readback(f.(%AST.Var{name: x}))}
+      %AST.Sigma{name: x, domain: a, codomain: f} when is_function(f) -> %AST.Sigma{name: x, domain: readback(a), codomain: readback(f.(%AST.Var{name: x}))}
+      %AST.Lam{name: x, body: f} when is_function(f) -> %AST.Lam{name: x, body: readback(f.(%AST.Var{name: x}))}
+      %AST.Pair{first: a, second: b, tag: r} -> %AST.Pair{first: readback(a), second: readback(b), tag: r}
       %AST.Var{name: x} -> %AST.Var{name: x}
       %AST.Neutral{term: t} -> readback(t)
       %AST.App{func: f, arg: a} -> %AST.App{func: readback(f), arg: readback(a)}
       %AST.Fst{expr: e} -> %AST.Fst{expr: readback(e)}
       %AST.Snd{expr: e} -> %AST.Snd{expr: readback(e)}
-      %AST.PathP{path: p, u0: u0, u1: u1} ->
-        %AST.PathP{path: readback(p), u0: if(u0, do: readback(u0)), u1: if(u1, do: readback(u1))}
-      %AST.PLam{name: x, body: f} when is_function(f) ->
-        %AST.PLam{name: x, body: readback(f.(%AST.Var{name: x}))}
-      %AST.AppFormula{left: e, right: x} ->
-        %AST.AppFormula{left: readback(e), right: readback(x)}
+      %AST.PathP{path: p, u0: u0, u1: u1} -> %AST.PathP{path: readback(p), u0: if(u0, do: readback(u0)), u1: if(u1, do: readback(u1))}
+      %AST.PLam{name: x, body: f} when is_function(f) -> %AST.PLam{name: x, body: readback(f.(%AST.Var{name: x}))}
+      %AST.AppFormula{left: e, right: x} -> %AST.AppFormula{left: readback(e), right: readback(x)}
       %AST.Interval{} -> %AST.Interval{}
       %AST.Dir{val: d} -> %AST.Dir{val: d}
       %AST.And{left: e1, right: e2} -> %AST.And{left: readback(e1), right: readback(e2)}
       %AST.Or{left: e1, right: e2} -> %AST.Or{left: readback(e1), right: readback(e2)}
       %AST.Neg{expr: e} -> %AST.Neg{expr: readback(e)}
       %AST.Transp{path: p, phi: i} -> %AST.Transp{path: readback(p), phi: readback(i)}
-      %AST.HComp{type: t, phi: r, u: u, u0: u0} ->
-        %AST.HComp{type: readback(t), phi: readback(r), u: readback(u), u0: readback(u0)}
+      %AST.HComp{type: t, phi: r, u: u, u0: u0} -> %AST.HComp{type: readback(t), phi: readback(r), u: readback(u), u0: readback(u0)}
       %AST.Partial{expr: e} -> %AST.Partial{expr: readback(e)}
       %AST.PartialP{type: t, phi: r} -> %AST.PartialP{type: readback(t), phi: readback(r)}
-      %AST.System{map: xs} ->
-        %AST.System{map: Map.new(Enum.map(xs, fn {face, term} -> {face, readback(term)} end))}
-      %AST.Sub{type: a, phi: i, u: u} ->
-        %AST.Sub{type: readback(a), phi: readback(i), u: readback(u)}
+      %AST.System{map: xs} -> %AST.System{map: Map.new(Enum.map(xs, fn {face, term} -> {face, readback(term)} end))}
+      %AST.Sub{type: a, phi: i, u: u} -> %AST.Sub{type: readback(a), phi: readback(i), u: readback(u)}
       %AST.Inc{type: t, phi: r} -> %AST.Inc{type: readback(t), phi: readback(r)}
       %AST.Ouc{expr: e} -> %AST.Ouc{expr: readback(e)}
       %AST.Empty{} -> %AST.Empty{}
@@ -1201,18 +1117,16 @@ defmodule Per.Typechecker do
       %AST.FalseConstant{} -> %AST.FalseConstant{}
       %AST.TrueConstant{} -> %AST.TrueConstant{}
       %AST.IndBool{type: e} -> %AST.IndBool{type: readback(e)}
-      %AST.W{name: x, domain: a, codomain: f} when is_function(f) ->
-        %AST.W{name: x, domain: readback(a), codomain: readback(f.(%AST.Var{name: x}))}
+      %AST.W{name: x, domain: a, codomain: f} when is_function(f) -> %AST.W{name: x, domain: readback(a), codomain: readback(f.(%AST.Var{name: x}))}
       %AST.Sup{a: a, b: b} -> %AST.Sup{a: readback(a), b: readback(b)}
-      %AST.IndW{a: a, b: b, motive: m} ->
-        %AST.IndW{a: readback(a), b: readback(b), motive: readback(m)}
+      %AST.IndW{a: a, b: b, motive: m} -> %AST.IndW{a: readback(a), b: readback(b), motive: readback(m)}
       _ -> val
     end
   end
 
   defp do_upd_val(face, v) do
     case v do
-      %AST.Var{name: n} -> 
+      %AST.Var{name: n} ->
         key_neutral = %AST.Neutral{term: v, type: %AST.Interval{}}
         cond do
           Map.has_key?(face, v) -> %AST.Dir{val: Map.get(face, v)}
@@ -1279,7 +1193,7 @@ defmodule Per.Typechecker do
       %AST.System{map: ts} ->
         # 1. Normalize ts to a map
         ts_map = if is_map(ts) and not is_struct(ts), do: ts, else: (if is_struct(ts, AST.System), do: ts.map, else: Map.new(ts))
-        
+
         face_keys = Map.keys(face)
         # 2. Compatibility check and update terms
         {res_list, all_same} = Enum.reduce(ts_map, {[], true}, fn {alpha, term}, {acc, same} ->
@@ -1287,7 +1201,7 @@ defmodule Per.Typechecker do
             av = Map.get(alpha, k)
             av != nil and av != v
           end)
-          
+
           if incompatible do
             {acc, false}
           else
@@ -1358,4 +1272,5 @@ defmodule Per.Typechecker do
     end)
   end
 end
+
 # Placeholder for next chunk
