@@ -24,7 +24,7 @@ let main ctx : command -> unit = function
   | Nope -> ()
 
 let check filename = st := handleErrors (Reader.checkFile !st) filename !st
-let banner = "Per theorem prover [MLTT-80] version 0.5.0"
+let banner = "Per theorem prover [MLTT-80] version 5.3.20"
 
 let loop () =
   print_endline ("\n" ^ banner) ;

@@ -306,7 +306,7 @@ def Tesseract (A : U) (a₀ b₀ c₀ d₀ a₁ b₁ c₁ d₁ a₂ b₂ c₂ d�
         </section>
 
         <section>
-            <h2>Interactive Agda and Lean REPL</h2>
+            <h2>Agda and Lean Syntaxes</h2>
             <div style="max-width:720px;margin:0 auto;">
                 <pre class="code-snippet">
 $ mix per.base --syntax=agda
@@ -336,6 +336,18 @@ TERM: (sup 𝟐 (ind₂ \f -> U₀) 𝟎 𝟏) 0₂ ind₀ W(x : 𝟐) (ind₂ \
 per [Lean]>
 </pre>
 </div>
+        </section>
+
+        <section>
+            <h2>Peer Checker in OCaml</h2>
+            <div style="max-width:720px;margin:0 auto;">
+                <pre class="code-snippet">
+% dune exec per check test/per/constcubes.per repl
+File “constcubes.per” checked.
+
+Per theorem prover [MLTT-80] version 5.3.20
+>
+</pre></div>
         </section>
 
         <section class="section-standards">
