@@ -37,61 +37,69 @@ defmodule Per.DNF do
   end
 
   def ext_or(v) do
-    Prof.measure("ext_or", fn ->
-      case v do
-        %Per.AST.Dir{val: 0} -> MapSet.new()
-        %Per.AST.Dir{val: 1} -> MapSet.new([%{}])
-        %Per.AST.Or{left: x, right: y} -> MapSet.union(ext_or(x), ext_or(y))
-        %Per.AST.And{} -> ext_and(v)
-        %Per.AST.Neg{expr: %Per.AST.Neg{expr: e}} -> ext_or(e)
-        %Per.AST.Neg{expr: %Per.AST.And{}} -> ext_and(v)
-        %Per.AST.Neg{expr: %Per.AST.Or{}} -> ext_and(v)
-        %Per.AST.Neg{expr: %Per.AST.Neutral{term: t}} -> ext_or(%Per.AST.Neg{expr: t})
-        %Per.AST.Neg{expr: %Per.AST.Var{name: name}} -> MapSet.new([Map.new([{atom(name), 0}])])
-        %Per.AST.Neutral{term: t} -> ext_or(t)
-        %Per.AST.Var{name: name} -> MapSet.new([Map.new([{atom(name), 1}])])
-        _ -> MapSet.new([Map.new([{atom(v), 1}])])
-      end
-    end)
+    case v do
+      %Per.AST.Dir{val: 0} -> MapSet.new()
+      %Per.AST.Dir{val: 1} -> MapSet.new([%{}])
+      %Per.AST.Or{left: x, right: y} -> MapSet.union(ext_or(x), ext_or(y))
+      _ ->
+        res = ext_and(v)
+        MapSet.new([res])
+    end
   end
 
   def ext_and(v) do
-    Prof.measure("ext_and", fn ->
-      case v do
-        %Per.AST.And{left: x, right: y} ->
-          unions(ext_or(x), ext_or(y))
-        %Per.AST.Neg{expr: %Per.AST.And{left: x, right: y}} -> 
-          MapSet.union(ext_or(%Per.AST.Neg{expr: x}), ext_or(%Per.AST.Neg{expr: y}))
-        %Per.AST.Neg{expr: %Per.AST.Or{left: x, right: y}} -> 
-          unions(ext_or(%Per.AST.Neg{expr: x}), ext_or(%Per.AST.Neg{expr: y}))
-        %Per.AST.Neg{expr: %Per.AST.Neutral{term: t}} -> ext_and(%Per.AST.Neg{expr: t})
-        %Per.AST.Neutral{term: t} -> ext_and(t)
-        _ -> ext_or(v)
-      end
-    end)
+    case v do
+      %Per.AST.And{left: x, right: y} ->
+        c1 = ext_and(x)
+        c2 = ext_and(y)
+        Map.merge(c1, c2)
+      %Per.AST.Neg{expr: %Per.AST.Var{name: name}} ->
+        Map.new([{atom(name), 0}])
+      %Per.AST.Var{name: name} ->
+        Map.new([{atom(name), 1}])
+      %Per.AST.Dir{val: 1} ->
+        %{}
+      %Per.AST.Neutral{term: t} ->
+        ext_and(t)
+      _ ->
+        Map.new([{atom(v), 1}])
+    end
   end
 
   def uniq(t) do
-    Prof.measure("uniq", fn ->
-      super_fn = fn x, y ->
-        x != y and Map.merge(x, y) == x
-      end
-
+    # Optimization: A singleton set or empty set is already unique
+    if MapSet.size(t) <= 1 do
       t
-      |> Enum.filter(fn x ->
-        not Enum.any?(t, fn other -> super_fn.(x, other) end)
+    else
+      Prof.measure("uniq", fn ->
+        # We want to remove any conjunction x that is "covered" by another more general conjunction y.
+        # y covers x if y is a subset of x (less constraints).
+        list = Enum.sort_by(t, &map_size/1)
+        
+        Enum.reduce(list, [], fn x, acc ->
+          if Enum.any?(acc, fn y -> Map.merge(x, y) == x end) do
+             acc
+          else
+             [x | acc]
+          end
+        end)
+        |> MapSet.new()
       end)
-      |> MapSet.new()
-    end)
+    end
   end
 
   def unions(t1, t2) do
-    Prof.measure("unions", fn ->
-      res = for c1 <- t1, c2 <- t2,
-                match?({:ok, _}, meet(c1, c2)),
-                do: elem(meet(c1, c2), 1)
-      uniq(MapSet.new(res))
-    end)
+    # Optimization: If either is empty (False), return empty
+    if MapSet.size(t1) == 0 or MapSet.size(t2) == 0 do
+      MapSet.new()
+    else
+      Prof.measure("unions", fn ->
+        res = for c1 <- t1, c2 <- t2,
+                  {:ok, m} <- [meet(c1, c2)],
+                  do: m
+        uniq(MapSet.new(res))
+      end)
+    end
   end
 
   def neg_conjunction(c) do
@@ -131,12 +139,23 @@ defmodule Per.DNF do
     end
   end
 
-  def eval_and(a, b), do: contr_or(unions(ext_or(a), ext_or(b)))
-  def eval_or(a, b), do: contr_or(uniq(MapSet.union(ext_or(a), ext_or(b))))
+  def eval_and(a, b) do
+    contr_or(unions(ext_or(a), ext_or(b)))
+  end
+
+  def eval_or(a, b) do
+    contr_or(uniq(MapSet.union(ext_or(a), ext_or(b))))
+  end
 
 
   def solve(v, val) do
-    if val == 1, do: ext_or(v), else: ext_or(neg_formula(v))
+    Prof.measure("solve", fn ->
+      if val == 1 do
+         ext_or(v)
+      else
+         ext_or(neg_formula(v))
+      end
+    end)
   end
 
   def getFaceV(face) do
@@ -149,7 +168,8 @@ defmodule Per.DNF do
 
   def getFormulaV(map) do
     Enum.reduce(map, %Per.AST.Dir{val: 0}, fn {face, _val}, acc ->
-      eval_or(getFaceV(face), acc)
+      fv = getFaceV(face)
+      eval_or(fv, acc)
     end)
   end
 
@@ -172,6 +192,8 @@ defmodule Per.DNF do
   end
 
   def logic_eq(v1, v2) do
-    ext_or(v1) == ext_or(v2)
+    Prof.measure("logic_eq", fn ->
+      ext_or(v1) == ext_or(v2)
+    end)
   end
 end
