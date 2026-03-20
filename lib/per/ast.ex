@@ -345,4 +345,25 @@ defmodule Per.AST do
     end)
     |> Enum.join()
   end
+
+  def collect_atoms(expr) do
+    do_collect_atoms(expr, MapSet.new())
+    |> MapSet.to_list()
+    |> Enum.sort()
+  end
+
+  defp do_collect_atoms(expr, acc) do
+    case expr do
+      %Var{name: n} -> MapSet.put(acc, n)
+      %Neg{expr: e} -> do_collect_atoms(e, acc)
+      %And{left: l, right: r} -> 
+        acc = do_collect_atoms(l, acc)
+        do_collect_atoms(r, acc)
+      %Or{left: l, right: r} ->
+        acc = do_collect_atoms(l, acc)
+        do_collect_atoms(r, acc)
+      %Neutral{term: t} -> do_collect_atoms(t, acc)
+      _ -> acc
+    end
+  end
 end

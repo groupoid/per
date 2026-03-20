@@ -61,8 +61,25 @@ defmodule Per.Typechecker do
     end)
   end
 
-  defp border(xs, v), do: %AST.System{map: Map.new(Enum.map(xs, fn alpha -> {alpha, upd(alpha, v)} end))}
-  defp partialv(t, r), do: %AST.PartialP{type: %AST.System{map: border(Per.DNF.solve(r, 1), t).map}, phi: r}
+  defp border(xs, v, index \\ nil) do
+    if index do
+      inv_index = Map.new(Enum.map(index, fn {k,v} -> {v,k} end))
+      %AST.System{map: Map.new(Enum.map(xs, fn alpha -> 
+        # Convert bitset to map for the system representation
+        face = Per.DNF.from_bits(alpha, inv_index)
+        {face, upd(face, v)} 
+      end))}
+    else
+      %AST.System{map: Map.new(Enum.map(xs, fn alpha -> {alpha, upd(alpha, v)} end))}
+    end
+  end
+
+  defp partialv(t, r) do
+    atoms = AST.collect_atoms(r)
+    index = Map.new(Enum.with_index(atoms))
+    solved = Per.DNF.solve(r, 1, index)
+    %AST.PartialP{type: %AST.System{map: border(solved, t, index).map}, phi: r}
+  end
 
   defp upd(alpha, v), do: upd_val(alpha, v)
 

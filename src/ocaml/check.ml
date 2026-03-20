@@ -18,6 +18,7 @@ let imax a b = match a, b with
   | VKan _, _ | VPre _, _ -> raise (ExpectedVSet (rbV b))
   | _, _ -> raise (ExpectedVSet (rbV a))
 
+
 let orEq f g = Disjunction.equal (Dnf.uniq (Dnf.extOr f)) (Dnf.uniq (Dnf.extOr g))
 let andEq f g = Conjunction.equal (Dnf.extAnd f) (Dnf.extAnd g)
 let compatible xs ys = Env.merge (fun _ x y -> match x, y with | Some d1, Some d2 -> Some (d1 = d2) | _, _ -> Some true) xs ys |> Env.for_all (fun _ b -> b)
