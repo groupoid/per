@@ -34,7 +34,7 @@ with definitional equality `Γ ⊢ t = t'` implemented via `equal`.
 
 ```OCaml
 type exp =
-  | EKan of Z.t
+  | EType of Z.t
   | EVar of ident | EHole
   | EPi of exp * (ident * exp) | ELam of exp * (ident * exp) | EApp of exp * exp
   | ESig of exp * (ident * exp) | EPair of tag * exp * exp
