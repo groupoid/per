@@ -59,19 +59,31 @@ defmodule Per.DNF do
     end
   end
 
-  # ext_or/ext_and now return bitsets if index is provided
-  def ext_or(v, index \\ nil) do
-    case v do
-      %AST.Dir{val: 0} -> MapSet.new()
-      %AST.Dir{val: 1} -> MapSet.new([if(index, do: {0, 0}, else: %{})])
-      %AST.Or{left: x, right: y} -> MapSet.union(ext_or(x, index), ext_or(y, index))
-      _ ->
-        if index do
-          MapSet.new([ext_and_bits(v, index)])
-        else
-          MapSet.new([ext_and(v)])
-        end
+  defp memo(key, func) do
+    memo_key = {:dnf_memo, key}
+    case Process.get(memo_key) do
+      nil ->
+        res = func.()
+        Process.put(memo_key, res)
+        res
+      res -> res
     end
+  end
+
+  def ext_or(v, index \\ nil) do
+    memo({:ext_or, v, index}, fn ->
+      case v do
+        %AST.Dir{val: 0} -> MapSet.new()
+        %AST.Dir{val: 1} -> MapSet.new([if(index, do: {0, 0}, else: %{})])
+        %AST.Or{left: x, right: y} -> MapSet.union(ext_or(x, index), ext_or(y, index))
+        _ ->
+          if index do
+            MapSet.new([ext_and_bits(v, index)])
+          else
+            MapSet.new([ext_and(v)])
+          end
+      end
+    end)
   end
 
   def ext_and(v) do
@@ -107,19 +119,15 @@ defmodule Per.DNF do
 
   def uniq(t) do
     size = MapSet.size(t)
-    # Shortcut for singletons/empty sets
     if size <= 1 do
       t
     else
-      Prof.measure("uniq", fn ->
+      memo({:uniq, t}, fn ->
         list = MapSet.to_list(t)
-        # Optimized coverage check
         res = case list do
-          # Optimized for size 2
           [x, y] -> 
             if covers?(x, y), do: [x], else: (if covers?(y, x), do: [y], else: [x, y])
           _ ->
-            # Sort by constraint count (more general first)
             sorted = Enum.sort_by(list, fn 
               {m, _} -> bit_count(m) 
               m when is_map(m) -> map_size(m)
@@ -148,7 +156,7 @@ defmodule Per.DNF do
     if MapSet.size(t1) == 0 or MapSet.size(t2) == 0 do
       MapSet.new()
     else
-      Prof.measure("unions", fn ->
+      memo({:unions, t1, t2}, fn ->
         res = for c1 <- t1, c2 <- t2,
                   {:ok, m} <- [meet(c1, c2)],
                   do: m
@@ -245,29 +253,27 @@ defmodule Per.DNF do
   def eval_or(a, b), do: contr_or(uniq(MapSet.union(ext_or(a), ext_or(b))))
 
   def solve(v, val, index \\ nil) do
-    Prof.measure("solve", fn ->
-      if val == 1 do
-        ext_or(v, index)
-      else
-        ext_or(neg_formula(v, index), index)
-      end
-    end)
+    if val == 1 do
+      ext_or(v, index)
+    else
+      ext_or(neg_formula(v, index), index)
+    end
   end
 
   def logic_eq(v1, v2) do
     if v1 === v2 do
       true
     else
-      case {v1, v2} do
-        {%AST.Dir{val: d1}, %AST.Dir{val: d2}} -> d1 == d2
-        _ ->
-          Prof.measure("logic_eq", fn ->
+      memo({:logic_eq, v1, v2}, fn ->
+        case {v1, v2} do
+          {%AST.Dir{val: d1}, %AST.Dir{val: d2}} -> d1 == d2
+          _ ->
             # For cubes, we can collect atoms and use bitsets
             atoms = AST.collect_atoms(%AST.And{left: v1, right: v2})
             index = Map.new(Enum.with_index(atoms))
             ext_or(v1, index) == ext_or(v2, index)
-          end)
-      end
+        end
+      end)
     end
   end
 
