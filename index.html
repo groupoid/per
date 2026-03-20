@@ -342,6 +342,37 @@ per [Lean]>
             <h2>Peer Checker in OCaml</h2>
             <div style="max-width:720px;margin:0 auto;">
                 <pre class="code-snippet">
+$ mix per.test --syntax=lean --trace
+Running Per tests [lean]...
+  Testing test/per/canonical.per...
+desugar                                            [                                        ] 0.000002s (x1)
+imports                                            [=                                       ] 0.000057s (x1)
+lexer                                              [=                                       ] 0.000072s (x1)
+parser                                             [                                        ] 0.000008s (x1)
+typecheck                                          [========================================] 0.002943s (x1)
+OK (canonical)
+  Testing test/per/constcubes.per...
+desugar                                            [                                        ] 0.000131s (x1)
+imports                                            [                                        ] 0.001360s (x1)
+lexer                                              [                                        ] 0.003333s (x1)
+parser                                             [                                        ] 0.000444s (x1)
+typecheck                                          [========================================] 0.718808s (x1)
+OK (constcubes)
+  Testing test/per/homotopical.per...
+desugar                                            [                                        ] 0.000007s (x1)
+imports                                            [===================================     ] 0.000671s (x1)
+lexer                                              [========================================] 0.000764s (x1)
+parser                                             [=                                       ] 0.000020s (x1)
+typecheck                                          [===========                             ] 0.000213s (x1)
+OK (homotopical)
+
+All Per tests passed.</pre></div>
+        </section>
+
+        <section>
+            <h2>Peer Checker in OCaml</h2>
+            <div style="max-width:720px;margin:0 auto;">
+                <pre class="code-snippet">
 % dune exec per check test/per/constcubes.per repl
 File “constcubes.per” checked.
 
